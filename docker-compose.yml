@@ -51,7 +51,7 @@ services:
     labels:
       - 'traefik.enable=true'
       - 'traefik.docker.network=proxy'
-      - 'traefik.http.routers.armory.rule=Host(`${ARMORY_DOMAIN}`)'
+      - 'traefik.http.routers.armory.rule=Host(`${ARMORY_DOMAIN:?set ARMORY_DOMAIN in .env}`)'
       - 'traefik.http.routers.armory.entrypoints=websecure'
       - 'traefik.http.routers.armory.tls.certresolver=${TRAEFIK_CERTRESOLVER:-myvercelresolver}'
       - 'traefik.http.services.armory.loadbalancer.server.port=80'
