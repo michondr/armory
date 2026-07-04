@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
 export function Modal({
   title,
@@ -9,9 +9,13 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  // Always call the latest onClose without re-running the history effect.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     window.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
@@ -19,7 +23,28 @@ export function Modal({
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
     };
-  }, [onClose]);
+  }, []);
+
+  // Make the phone/browser Back button close the modal instead of navigating away:
+  // push a same-URL history entry on open; Back pops it and fires popstate.
+  useEffect(() => {
+    window.history.pushState({ armoryModal: true }, '');
+    let closedByBack = false;
+    const onPop = () => {
+      closedByBack = true;
+      onCloseRef.current();
+    };
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      // Closed via UI (Cancel/backdrop/save): consume the entry we added —
+      // but only if it's still ours (guard against an intervening navigation).
+      const state = window.history.state as { armoryModal?: boolean } | null;
+      if (!closedByBack && state?.armoryModal) {
+        window.history.back();
+      }
+    };
+  }, []);
 
   return (
     <div

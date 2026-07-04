@@ -39,14 +39,25 @@ export function LightboxProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!filename) return;
+    // Push a history entry so the phone Back button closes the lightbox first.
+    window.history.pushState({ armoryLightbox: true }, '');
+    let closedByBack = false;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setFilename(null);
     };
+    const onPop = () => {
+      closedByBack = true;
+      setFilename(null);
+    };
     window.addEventListener('keydown', onKey);
+    window.addEventListener('popstate', onPop);
     document.body.style.overflow = 'hidden';
     return () => {
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('popstate', onPop);
       document.body.style.overflow = '';
+      const state = window.history.state as { armoryLightbox?: boolean } | null;
+      if (!closedByBack && state?.armoryLightbox) window.history.back();
     };
   }, [filename]);
 
