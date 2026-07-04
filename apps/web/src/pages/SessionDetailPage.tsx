@@ -44,6 +44,7 @@ export function SessionDetailPage() {
         {session.gun.imagePath ? (
           <AuthImage
             filename={session.gun.imagePath}
+            zoomable
             className="h-16 w-16 shrink-0 rounded-lg object-cover"
           />
         ) : (
@@ -150,7 +151,11 @@ function TargetBlock({
     <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
       <div className="flex items-start gap-3">
         {target.imagePath ? (
-          <AuthImage filename={target.imagePath} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+          <AuthImage
+            filename={target.imagePath}
+            zoomable
+            className="h-16 w-16 shrink-0 rounded-lg object-cover"
+          />
         ) : (
           <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-neutral-200 text-xl dark:bg-neutral-800">
             🎯

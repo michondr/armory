@@ -38,7 +38,7 @@ export function ImageField({
     <div className="space-y-2">
       <div className="flex items-center gap-3">
         {value ? (
-          <AuthImage filename={value} className="h-20 w-20 rounded-lg object-cover" />
+          <AuthImage filename={value} zoomable className="h-20 w-20 rounded-lg object-cover" />
         ) : (
           <div className="grid h-20 w-20 place-items-center rounded-lg bg-neutral-200 text-2xl text-neutral-400 dark:bg-neutral-800">
             {placeholder}

@@ -345,7 +345,7 @@ function ImagesEditor({
       <div className="mt-2 flex flex-wrap items-center gap-3">
         {items.map((it) => (
           <div key={it.key} className="relative">
-            <AuthImage filename={it.path} className="h-20 w-20 rounded-lg object-cover" />
+            <AuthImage filename={it.path} zoomable className="h-20 w-20 rounded-lg object-cover" />
             <button
               type="button"
               onClick={() => remove(it.key)}
