@@ -30,7 +30,10 @@ export function Modal({
   useEffect(() => {
     window.history.pushState({ armoryModal: true }, '');
     let closedByBack = false;
-    const onPop = () => {
+    const onPop = (e: PopStateEvent) => {
+      // If our own entry is still on top, a child overlay (e.g. the image
+      // lightbox) was popped — stay open and let it handle the Back.
+      if ((e.state as { armoryModal?: boolean } | null)?.armoryModal) return;
       closedByBack = true;
       onCloseRef.current();
     };
