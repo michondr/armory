@@ -30,7 +30,7 @@ export function Modal({
         className="w-full max-w-2xl rounded-2xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-neutral-200 px-6 py-4 dark:border-neutral-800">
+        <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-4 dark:border-neutral-800 sm:px-6">
           <h2 className="font-medium">{title}</h2>
           <button
             onClick={onClose}
@@ -40,7 +40,7 @@ export function Modal({
             ✕
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-4 sm:p-6">{children}</div>
       </div>
     </div>
   );

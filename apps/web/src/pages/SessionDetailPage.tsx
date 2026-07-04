@@ -215,7 +215,7 @@ function TargetScorer({
         onChange={(e) => setText(e.target.value)}
         placeholder="Ring values, e.g. 10 10 9 9 9 8"
       />
-      <div className="flex items-center justify-between text-xs text-neutral-500">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
         <span>
           {parsed.length} shots · sum {sum} · avg {avg}
         </span>

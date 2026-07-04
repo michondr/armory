@@ -404,30 +404,32 @@ function PriceLog({ ammo }: { ammo: Ammo }) {
         )}
       </span>
       {ammo.priceEntries.length > 0 && (
-        <table className="my-2 w-full text-sm">
-          <tbody>
-            {ammo.priceEntries.map((p) => (
-              <tr key={p.id} className="text-neutral-600 dark:text-neutral-300">
-                <td className="py-1">{p.date.slice(0, 10)}</td>
-                <td>
-                  {p.pricePerRound.toFixed(2)} {p.currency}/rd
-                </td>
-                <td>×{p.quantity}</td>
-                <td className="text-neutral-400">{p.vendor}</td>
-                <td className="text-right">
-                  <button
-                    type="button"
-                    onClick={() => del.mutate(p.id)}
-                    className="text-neutral-400 hover:text-red-500"
-                    aria-label="Delete price entry"
-                  >
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="my-2 overflow-x-auto">
+          <table className="w-full text-sm">
+            <tbody>
+              {ammo.priceEntries.map((p) => (
+                <tr key={p.id} className="text-neutral-600 dark:text-neutral-300">
+                  <td className="whitespace-nowrap py-1 pr-3">{p.date.slice(0, 10)}</td>
+                  <td className="whitespace-nowrap pr-3">
+                    {p.pricePerRound.toFixed(2)} {p.currency}/rd
+                  </td>
+                  <td className="pr-3">×{p.quantity}</td>
+                  <td className="pr-3 text-neutral-400">{p.vendor}</td>
+                  <td className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => del.mutate(p.id)}
+                      className="text-neutral-400 hover:text-red-500"
+                      aria-label="Delete price entry"
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       <div className="mt-2 flex flex-wrap items-end gap-2">
         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-auto" />
