@@ -6,6 +6,8 @@ import { AmmoPage } from './pages/AmmoPage';
 import { AuthPage } from './pages/AuthPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { GunsPage } from './pages/GunsPage';
+import { SessionDetailPage } from './pages/SessionDetailPage';
+import { SessionsPage } from './pages/SessionsPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -36,6 +38,8 @@ export function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/guns" element={<GunsPage />} />
         <Route path="/ammo" element={<AmmoPage />} />
+        <Route path="/sessions" element={<SessionsPage />} />
+        <Route path="/sessions/:id" element={<SessionDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

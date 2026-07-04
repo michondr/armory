@@ -39,6 +39,7 @@ model User {
   refreshTokens RefreshToken[]
   guns          Gun[]
   ammo          Ammo[]
+  sessions      Session[]
 
   @@map("users")
 }
@@ -67,6 +68,8 @@ model Gun {
   updatedAt              DateTime  @updatedAt
   deletedAt              DateTime?
 
+  sessions Session[]
+
   @@index([userId])
   @@map("guns")
 }
@@ -90,6 +93,7 @@ model Ammo {
 
   images       AmmoImage[]
   priceEntries AmmoPriceEntry[]
+  sessions     Session[]
 
   @@index([userId])
   @@map("ammo")
@@ -121,6 +125,110 @@ model AmmoPriceEntry {
 
   @@index([ammoId])
   @@map("ammo_price_entries")
+}
+
+enum Discipline {
+  SHORT
+  LONG
+}
+
+enum ScoringSystem {
+  RINGS
+  IPSC
+  GROUP
+}
+
+enum TargetStatus {
+  PENDING
+  SCORED
+  APPROVED
+  MANUAL
+}
+
+enum ShotSource {
+  AI
+  MANUAL
+}
+
+// A range visit: one gun + optional ammo, a place + time, and one or more sets.
+model Session {
+  id           String     @id @default(uuid()) @db.Uuid
+  userId       String     @db.Uuid
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gunId        String     @db.Uuid
+  gun          Gun        @relation(fields: [gunId], references: [id])
+  ammoId       String?    @db.Uuid
+  ammo         Ammo?      @relation(fields: [ammoId], references: [id])
+  startedAt    DateTime   @default(now())
+  locationName String?
+  latitude     Float?
+  longitude    Float?
+  discipline   Discipline @default(SHORT)
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  sets ShootingSet[]
+
+  @@index([userId])
+  @@index([gunId])
+  @@map("sessions")
+}
+
+// A string of fire at a given distance. IPSC time is captured here (used in Phase 5).
+model ShootingSet {
+  id              String   @id @default(uuid()) @db.Uuid
+  sessionId       String   @db.Uuid
+  session         Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  order           Int      @default(0)
+  distanceM       Float?
+  ipscTimeSeconds Float?
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  targets Target[]
+
+  @@index([sessionId])
+  @@map("shooting_sets")
+}
+
+// One physical target. Manual scoring stores ring values per shot; vision (Phase 3)
+// will add x/y positions. totalScore is recomputed whenever shots change.
+model Target {
+  id              String        @id @default(uuid()) @db.Uuid
+  setId           String        @db.Uuid
+  set             ShootingSet   @relation(fields: [setId], references: [id], onDelete: Cascade)
+  imagePath       String?
+  shotCount       Int           @default(0)
+  scoringSystem   ScoringSystem @default(RINGS)
+  maxScorePerShot Int?
+  status          TargetStatus  @default(PENDING)
+  totalScore      Float?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  shots Shot[]
+
+  @@index([setId])
+  @@map("targets")
+}
+
+model Shot {
+  id        String     @id @default(uuid()) @db.Uuid
+  targetId  String     @db.Uuid
+  target    Target     @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  index     Int        @default(0)
+  ringValue Float?
+  x         Float?
+  y         Float?
+  zone      String?
+  source    ShotSource @default(MANUAL)
+  createdAt DateTime   @default(now())
+
+  @@index([targetId])
+  @@map("shots")
 }
 
 // Hashed, per-device refresh tokens so we can rotate + revoke individually.

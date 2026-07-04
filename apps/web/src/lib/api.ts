@@ -5,12 +5,19 @@ import type {
   CreateAmmoInput,
   CreateGunInput,
   CreatePriceEntryInput,
+  CreateSessionInput,
+  CreateSetInput,
+  CreateTargetInput,
   Gun,
   LoginInput,
   RegisterInput,
+  SessionDetail,
+  SessionListItem,
   UpdateAmmoInput,
   UpdateGunInput,
+  UpdateSessionInput,
   UpdateSettingsInput,
+  UpdateTargetInput,
   UserSettings,
 } from '@armory/shared';
 
@@ -165,4 +172,38 @@ export const ammoApi = {
     apiFetch<Ammo>(`/ammo/${id}/images`, { method: 'POST', body: JSON.stringify({ imagePath }) }),
   removeImage: (id: string, imageId: string) =>
     apiFetch<Ammo>(`/ammo/${id}/images/${imageId}`, { method: 'DELETE' }),
+};
+
+export const sessionsApi = {
+  list: (gunId?: string) =>
+    apiFetch<SessionListItem[]>(`/sessions${gunId ? `?gunId=${gunId}` : ''}`),
+  get: (id: string) => apiFetch<SessionDetail>(`/sessions/${id}`),
+  create: (input: CreateSessionInput) =>
+    apiFetch<SessionDetail>('/sessions', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: UpdateSessionInput) =>
+    apiFetch<SessionDetail>(`/sessions/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => apiFetch<{ ok: true }>(`/sessions/${id}`, { method: 'DELETE' }),
+  addSet: (id: string, input: CreateSetInput) =>
+    apiFetch<SessionDetail>(`/sessions/${id}/sets`, { method: 'POST', body: JSON.stringify(input) }),
+  removeSet: (id: string, setId: string) =>
+    apiFetch<SessionDetail>(`/sessions/${id}/sets/${setId}`, { method: 'DELETE' }),
+  addTarget: (id: string, setId: string, input: CreateTargetInput) =>
+    apiFetch<SessionDetail>(`/sessions/${id}/sets/${setId}/targets`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  updateTarget: (id: string, setId: string, targetId: string, input: UpdateTargetInput) =>
+    apiFetch<SessionDetail>(`/sessions/${id}/sets/${setId}/targets/${targetId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  removeTarget: (id: string, setId: string, targetId: string) =>
+    apiFetch<SessionDetail>(`/sessions/${id}/sets/${setId}/targets/${targetId}`, {
+      method: 'DELETE',
+    }),
+  setShots: (id: string, setId: string, targetId: string, ringValues: number[]) =>
+    apiFetch<SessionDetail>(`/sessions/${id}/sets/${setId}/targets/${targetId}/shots`, {
+      method: 'PUT',
+      body: JSON.stringify({ ringValues }),
+    }),
 };

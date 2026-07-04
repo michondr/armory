@@ -34,4 +34,5 @@ export interface Gun {
   roundsFired: number;
   roundsSinceCleaning: number;
   cleaningDue: boolean;
+  lastShotAt: string | null;
 }

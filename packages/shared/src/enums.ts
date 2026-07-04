@@ -37,6 +37,13 @@ export const TargetStatus = {
 } as const;
 export type TargetStatus = (typeof TargetStatus)[keyof typeof TargetStatus];
 
+/** Where a shot's data came from: vision detection or manual entry. */
+export const ShotSource = {
+  AI: 'AI',
+  MANUAL: 'MANUAL',
+} as const;
+export type ShotSource = (typeof ShotSource)[keyof typeof ShotSource];
+
 /** Ballistic-coefficient drag model. G1 (flat-base) is most common; G7 suits long boat-tails. */
 export const BcModel = {
   G1: 'G1',

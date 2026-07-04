@@ -4,6 +4,11 @@ import type { CreateGunInput, Gun, UpdateGunInput } from '@armory/shared';
 import { ImagesService } from '../images/images.service';
 import { PrismaService } from '../prisma/prisma.service';
 
+interface GunUsage {
+  rounds: number;
+  lastShotAt: Date | null;
+}
+
 @Injectable()
 export class GunsService {
   constructor(
@@ -16,13 +21,23 @@ export class GunsService {
       where: { userId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
     });
-    return guns.map((g) => this.toDto(g));
+    const usage = await this.usageByGun(userId);
+    return guns
+      .map((g) => this.toDto(g, usage.get(g.id)))
+      .sort((a, b) => {
+        // Most recently shot first; guns never shot fall to the bottom.
+        const at = a.lastShotAt ? Date.parse(a.lastShotAt) : 0;
+        const bt = b.lastShotAt ? Date.parse(b.lastShotAt) : 0;
+        if (bt !== at) return bt - at;
+        return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+      });
   }
 
   async get(userId: string, id: string): Promise<Gun> {
     const gun = await this.prisma.gun.findFirst({ where: { id, userId, deletedAt: null } });
     if (!gun) throw new NotFoundException('Gun not found');
-    return this.toDto(gun);
+    const usage = await this.usageByGun(userId, id);
+    return this.toDto(gun, usage.get(id));
   }
 
   async create(userId: string, input: CreateGunInput): Promise<Gun> {
@@ -40,14 +55,13 @@ export class GunsService {
         notes: input.notes ?? null,
       },
     });
-    return this.toDto(gun);
+    return this.toDto(gun, undefined);
   }
 
   async update(userId: string, id: string, input: UpdateGunInput): Promise<Gun> {
     const existing = await this.prisma.gun.findFirst({ where: { id, userId, deletedAt: null } });
     if (!existing) throw new NotFoundException('Gun not found');
 
-    // If the image is being replaced or cleared, delete the old file.
     if (input.imagePath !== undefined && existing.imagePath && input.imagePath !== existing.imagePath) {
       await this.images.remove(userId, existing.imagePath);
     }
@@ -71,7 +85,8 @@ export class GunsService {
         notes: input.notes,
       },
     });
-    return this.toDto(gun);
+    const usage = await this.usageByGun(userId, id);
+    return this.toDto(gun, usage.get(id));
   }
 
   async remove(userId: string, id: string): Promise<void> {
@@ -81,9 +96,32 @@ export class GunsService {
     await this.images.remove(userId, existing.imagePath);
   }
 
-  private toDto(g: PrismaGun): Gun {
-    // Rounds fired = initial count + rounds logged in sessions (Phase 2). No sessions yet → 0.
-    const sessionRounds = 0;
+  /** Rounds fired (sum of target shot counts) + last session date, per gun. */
+  private async usageByGun(userId: string, gunId?: string): Promise<Map<string, GunUsage>> {
+    const sessions = await this.prisma.session.findMany({
+      where: { userId, deletedAt: null, ...(gunId ? { gunId } : {}) },
+      select: {
+        gunId: true,
+        startedAt: true,
+        sets: { select: { targets: { select: { shotCount: true } } } },
+      },
+    });
+    const map = new Map<string, GunUsage>();
+    for (const s of sessions) {
+      const rounds = s.sets.reduce(
+        (n, set) => n + set.targets.reduce((m, t) => m + t.shotCount, 0),
+        0,
+      );
+      const cur = map.get(s.gunId) ?? { rounds: 0, lastShotAt: null };
+      cur.rounds += rounds;
+      if (!cur.lastShotAt || s.startedAt > cur.lastShotAt) cur.lastShotAt = s.startedAt;
+      map.set(s.gunId, cur);
+    }
+    return map;
+  }
+
+  private toDto(g: PrismaGun, usage: GunUsage | undefined): Gun {
+    const sessionRounds = usage?.rounds ?? 0;
     const roundsFired = g.initialRoundCount + sessionRounds;
     const roundsSinceCleaning = Math.max(0, roundsFired - g.lastCleanedAtRound);
     const cleaningDue =
@@ -105,6 +143,7 @@ export class GunsService {
       roundsFired,
       roundsSinceCleaning,
       cleaningDue,
+      lastShotAt: usage?.lastShotAt ? usage.lastShotAt.toISOString() : null,
     };
   }
 }

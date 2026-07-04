@@ -35,6 +35,9 @@ export function AppLayout() {
             <NavLink to="/ammo" className={navClass}>
               Ammo
             </NavLink>
+            <NavLink to="/sessions" className={navClass}>
+              Sessions
+            </NavLink>
             <NavLink to="/settings" className={navClass}>
               Settings
             </NavLink>

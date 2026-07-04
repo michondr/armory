@@ -5,3 +5,5 @@ export * from './schemas/auth.js';
 export * from './schemas/settings.js';
 export * from './schemas/gun.js';
 export * from './schemas/ammo.js';
+export * from './schemas/stats.js';
+export * from './schemas/session.js';
