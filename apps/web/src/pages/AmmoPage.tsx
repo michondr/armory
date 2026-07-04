@@ -295,6 +295,7 @@ function ImagesEditor({
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ['ammo'] });
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const addImg = useMutation({
     mutationFn: (imagePath: string) => ammoApi.addImage(ammo!.id, imagePath),
@@ -318,9 +319,12 @@ function ImagesEditor({
     const file = e.target.files?.[0];
     if (!file) return;
     setBusy(true);
+    setError(null);
     try {
       const { imagePath } = await uploadImage(file);
       await addPath(imagePath);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Upload failed');
     } finally {
       setBusy(false);
       e.target.value = '';
@@ -359,6 +363,7 @@ function ImagesEditor({
           />
         </label>
       </div>
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
       <div className="mt-2">
         <UrlImageInput onAdded={addPath} />
       </div>

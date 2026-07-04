@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { uploadImage } from '../lib/api';
+import { ApiError, uploadImage } from '../lib/api';
 import { AuthImage } from './AuthImage';
 import { UrlImageInput } from './UrlImageInput';
 import { Button } from './ui';
@@ -26,8 +26,8 @@ export function ImageField({
     try {
       const { imagePath } = await uploadImage(file);
       onChange(imagePath);
-    } catch {
-      setError('Upload failed');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Upload failed');
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = '';
