@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { DISCIPLINES, type CreateSessionInput, type SessionListItem } from '@armory/shared';
@@ -112,7 +112,20 @@ function SessionCreateForm({
   const [locationName, setLocationName] = useState('');
   const [discipline, setDiscipline] = useState('SHORT');
   const [notes, setNotes] = useState('');
+  const [showAllAmmo, setShowAllAmmo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const gunCaliber = guns?.find((g) => g.id === gunId)?.caliber ?? null;
+  const norm = (s: string): string => s.trim().toLowerCase().replace(/\s+/g, ' ');
+  const filteredAmmo = (ammo ?? []).filter((a) => {
+    if (showAllAmmo || !gunCaliber) return true;
+    return a.caliber != null && norm(a.caliber) === norm(gunCaliber);
+  });
+
+  // Drop a selected ammo that no longer fits the chosen gun's caliber.
+  useEffect(() => {
+    if (ammoId && !filteredAmmo.some((a) => a.id === ammoId)) setAmmoId('');
+  }, [gunId, showAllAmmo, ammoId, filteredAmmo]);
 
   const create = useMutation({
     mutationFn: (input: CreateSessionInput) => sessionsApi.create(input),
@@ -156,12 +169,24 @@ function SessionCreateForm({
         <Field label="Ammo (optional)">
           <Select value={ammoId} onChange={(e) => setAmmoId(e.target.value)}>
             <option value="">—</option>
-            {(ammo ?? []).map((a) => (
+            {filteredAmmo.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
+                {a.caliber ? ` · ${a.caliber}` : ''}
               </option>
             ))}
           </Select>
+          {gunCaliber && (
+            <button
+              type="button"
+              onClick={() => setShowAllAmmo((v) => !v)}
+              className="mt-1 text-xs text-neutral-500 hover:underline"
+            >
+              {showAllAmmo
+                ? `Filter to ${gunCaliber}`
+                : `Showing ${gunCaliber} only${filteredAmmo.length === 0 ? ' (none) ' : ' · '}show all`}
+            </button>
+          )}
         </Field>
         <Field label="When">
           <Input
