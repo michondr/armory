@@ -1,0 +1,66 @@
+name: armory
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: armory-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/api.Dockerfile
+    container_name: armory-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - images:/data/images
+    # Internal only — the web nginx proxies /api over the compose network.
+    expose:
+      - '3000'
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/web.Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+    container_name: armory-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks:
+      - default
+      - proxy
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'traefik.http.routers.armory.rule=Host(`${ARMORY_DOMAIN}`)'
+      - 'traefik.http.routers.armory.entrypoints=websecure'
+      - 'traefik.http.routers.armory.tls.certresolver=${TRAEFIK_CERTRESOLVER:-myvercelresolver}'
+      - 'traefik.http.services.armory.loadbalancer.server.port=80'
+
+volumes:
+  pgdata:
+  images:
+
+networks:
+  # Traefik's external network. Only web joins it; api + db stay internal.
+  proxy:
+    external: true

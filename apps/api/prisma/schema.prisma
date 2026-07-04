@@ -1,0 +1,56 @@
+// Phase 0 schema: users, settings, auth. Inventory/sessions/targets land in later phases.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UnitSystem {
+  METRIC
+  IMPERIAL
+}
+
+enum AngularUnit {
+  MRAD
+  MOA
+}
+
+model User {
+  id           String      @id @default(uuid()) @db.Uuid
+  email        String      @unique
+  passwordHash String
+  displayName  String?
+  unitSystem   UnitSystem  @default(METRIC)
+  angularUnit  AngularUnit @default(MRAD)
+
+  // Per-user SMTP for notifications. Password stored encrypted at rest (AES-256-GCM).
+  smtpHost    String?
+  smtpPort    Int?
+  smtpUser    String?
+  smtpPassEnc String?
+  smtpFrom    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+// Hashed, per-device refresh tokens so we can rotate + revoke individually.
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}

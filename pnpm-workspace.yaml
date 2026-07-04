@@ -1,0 +1,19 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+allowBuilds:
+  '@prisma/client': set this to true or false
+  '@prisma/engines': set this to true or false
+  argon2: set this to true or false
+  esbuild: set this to true or false
+  prisma: set this to true or false
+
+# Allow these dependencies to run install/build scripts:
+# native compilation (argon2), platform binaries (esbuild), engine downloads (prisma).
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - argon2
+  - esbuild
+  - prisma
