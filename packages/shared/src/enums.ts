@@ -37,8 +37,16 @@ export const TargetStatus = {
 } as const;
 export type TargetStatus = (typeof TargetStatus)[keyof typeof TargetStatus];
 
+/** Ballistic-coefficient drag model. G1 (flat-base) is most common; G7 suits long boat-tails. */
+export const BcModel = {
+  G1: 'G1',
+  G7: 'G7',
+} as const;
+export type BcModel = (typeof BcModel)[keyof typeof BcModel];
+
 export const UNIT_SYSTEMS = Object.values(UnitSystem);
 export const ANGULAR_UNITS = Object.values(AngularUnit);
 export const DISCIPLINES = Object.values(Discipline);
 export const SCORING_SYSTEMS = Object.values(ScoringSystem);
 export const TARGET_STATUSES = Object.values(TargetStatus);
+export const BC_MODELS = Object.values(BcModel);
