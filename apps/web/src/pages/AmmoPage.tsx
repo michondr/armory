@@ -332,8 +332,11 @@ function ImagesEditor({
   };
 
   const remove = (key: string) => {
-    if (ammo) delImg.mutate(key);
-    else onStagedChange(staged.filter((p) => p !== key));
+    if (ammo) {
+      if (confirm('Delete this image?')) delImg.mutate(key);
+    } else {
+      onStagedChange(staged.filter((p) => p !== key));
+    }
   };
 
   return (
@@ -423,7 +426,9 @@ function PriceLog({ ammo }: { ammo: Ammo }) {
                   <td className="text-right">
                     <button
                       type="button"
-                      onClick={() => del.mutate(p.id)}
+                      onClick={() => {
+                        if (confirm('Delete this price entry?')) del.mutate(p.id);
+                      }}
                       className="text-neutral-400 hover:text-red-500"
                       aria-label="Delete price entry"
                     >

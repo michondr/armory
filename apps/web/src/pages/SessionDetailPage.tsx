@@ -108,14 +108,16 @@ function SetBlock({ sessionId, set, index }: { sessionId: string; set: SetDto; i
           <StatChips stats={set.stats} />
         </div>
         <button
-          onClick={() => removeSet.mutate()}
+          onClick={() => {
+            if (confirm('Remove this set and all its targets?')) removeSet.mutate();
+          }}
           className="text-sm text-neutral-400 hover:text-red-500"
         >
           Remove set
         </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="space-y-3">
         {set.targets.map((t, i) => (
           <TargetBlock key={t.id} sessionId={sessionId} setId={set.id} target={t} index={i} />
         ))}
@@ -138,6 +140,7 @@ function TargetBlock({
   index: number;
 }) {
   const apply = useSessionUpdate(sessionId);
+  const [editing, setEditing] = useState(false);
   const removeTarget = useMutation({
     mutationFn: () => sessionsApi.removeTarget(sessionId, setId, target.id),
     onSuccess: apply,
@@ -154,18 +157,29 @@ function TargetBlock({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-medium">Target {index + 1}</span>
-            <button
-              onClick={() => removeTarget.mutate()}
-              className="text-xs text-neutral-400 hover:text-red-500"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setEditing((v) => !v)}
+                className="text-xs text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+              >
+                {editing ? 'Close' : 'Edit'}
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm('Delete this target?')) removeTarget.mutate();
+                }}
+                className="text-xs text-neutral-400 hover:text-red-500"
+              >
+                Delete
+              </button>
+            </div>
           </div>
           <p className="text-xs text-neutral-500">
             {target.scoringSystem}
             {target.maxScorePerShot != null && ` · max ${target.maxScorePerShot}/shot`}
+            {target.shotCount ? ` · ${target.shotCount} shots` : ''}
             {target.totalScore != null && ` · total ${target.totalScore}`}
           </p>
           <div className="mt-1">
@@ -173,7 +187,79 @@ function TargetBlock({
           </div>
         </div>
       </div>
-      <TargetScorer sessionId={sessionId} setId={setId} target={target} />
+      {editing ? (
+        <TargetEditForm
+          sessionId={sessionId}
+          setId={setId}
+          target={target}
+          onDone={() => setEditing(false)}
+        />
+      ) : (
+        <TargetScorer sessionId={sessionId} setId={setId} target={target} />
+      )}
+    </div>
+  );
+}
+
+function TargetEditForm({
+  sessionId,
+  setId,
+  target,
+  onDone,
+}: {
+  sessionId: string;
+  setId: string;
+  target: TargetDto;
+  onDone: () => void;
+}) {
+  const apply = useSessionUpdate(sessionId);
+  const [shotCount, setShotCount] = useState(target.shotCount.toString());
+  const [maxScore, setMaxScore] = useState(target.maxScorePerShot?.toString() ?? '');
+  const [scoring, setScoring] = useState<string>(target.scoringSystem);
+  const [imagePath, setImagePath] = useState<string | null>(target.imagePath);
+
+  const save = useMutation({
+    mutationFn: () =>
+      sessionsApi.updateTarget(sessionId, setId, target.id, {
+        shotCount: Number(shotCount || '0'),
+        maxScorePerShot: maxScore ? Number(maxScore) : null,
+        scoringSystem: scoring as CreateTargetInput['scoringSystem'],
+        imagePath,
+      }),
+    onSuccess: (data) => {
+      apply(data);
+      onDone();
+    },
+  });
+
+  return (
+    <div className="mt-3 space-y-3 border-t border-neutral-200 pt-3 dark:border-neutral-800">
+      <ImageField value={imagePath} onChange={setImagePath} placeholder="🎯" />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="Shots">
+          <Input type="number" value={shotCount} onChange={(e) => setShotCount(e.target.value)} />
+        </Field>
+        <Field label="Max score/shot">
+          <Input type="number" value={maxScore} onChange={(e) => setMaxScore(e.target.value)} />
+        </Field>
+        <Field label="Scoring">
+          <Select value={scoring} onChange={(e) => setScoring(e.target.value)}>
+            {SCORING_SYSTEMS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+      <div className="flex gap-2">
+        <Button type="button" onClick={() => save.mutate()} disabled={save.isPending}>
+          {save.isPending ? 'Saving…' : 'Save target'}
+        </Button>
+        <Button type="button" variant="ghost" onClick={onDone}>
+          Cancel
+        </Button>
+      </div>
     </div>
   );
 }
