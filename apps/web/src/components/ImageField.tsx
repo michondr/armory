@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import { uploadImage } from '../lib/api';
 import { AuthImage } from './AuthImage';
+import { UrlImageInput } from './UrlImageInput';
 import { Button } from './ui';
 
-/** Single-image picker: preview + upload + clear. Value is the stored filename. */
+/** Single-image picker: preview + upload + paste-URL + clear. Value is the stored filename. */
 export function ImageField({
   value,
   onChange,
@@ -34,32 +35,35 @@ export function ImageField({
   };
 
   return (
-    <div className="flex items-center gap-3">
-      {value ? (
-        <AuthImage filename={value} className="h-20 w-20 rounded-lg object-cover" />
-      ) : (
-        <div className="grid h-20 w-20 place-items-center rounded-lg bg-neutral-200 text-2xl text-neutral-400 dark:bg-neutral-800">
-          {placeholder}
-        </div>
-      )}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        onChange={onFile}
-        className="hidden"
-      />
-      <div className="flex flex-col gap-1">
-        <Button type="button" variant="ghost" onClick={() => inputRef.current?.click()} disabled={busy}>
-          {busy ? 'Uploading…' : value ? 'Replace' : 'Upload image'}
-        </Button>
-        {value && (
-          <Button type="button" variant="ghost" onClick={() => onChange(null)}>
-            Remove
-          </Button>
+    <div className="space-y-2">
+      <div className="flex items-center gap-3">
+        {value ? (
+          <AuthImage filename={value} className="h-20 w-20 rounded-lg object-cover" />
+        ) : (
+          <div className="grid h-20 w-20 place-items-center rounded-lg bg-neutral-200 text-2xl text-neutral-400 dark:bg-neutral-800">
+            {placeholder}
+          </div>
         )}
-        {error && <span className="text-xs text-red-500">{error}</span>}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          onChange={onFile}
+          className="hidden"
+        />
+        <div className="flex flex-col gap-1">
+          <Button type="button" variant="ghost" onClick={() => inputRef.current?.click()} disabled={busy}>
+            {busy ? 'Uploading…' : value ? 'Replace' : 'Upload image'}
+          </Button>
+          {value && (
+            <Button type="button" variant="ghost" onClick={() => onChange(null)}>
+              Remove
+            </Button>
+          )}
+          {error && <span className="text-xs text-red-500">{error}</span>}
+        </div>
       </div>
+      <UrlImageInput onAdded={(filename) => onChange(filename)} />
     </div>
   );
 }

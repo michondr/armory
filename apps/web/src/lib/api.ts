@@ -104,6 +104,14 @@ export async function uploadImage(file: File): Promise<{ imagePath: string }> {
   return (await res.json()) as { imagePath: string };
 }
 
+/** Ask the server to download + store an image from a URL. Returns the stored filename. */
+export function uploadImageFromUrl(url: string): Promise<{ imagePath: string }> {
+  return apiFetch<{ imagePath: string }>('/images/from-url', {
+    method: 'POST',
+    body: JSON.stringify({ url }),
+  });
+}
+
 /** Load a protected image as an object URL (so the <img> request carries auth). */
 export async function fetchImageObjectUrl(filename: string): Promise<string> {
   const res = await authFetch(`/images/${encodeURIComponent(filename)}`, {}, false);

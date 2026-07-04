@@ -18,6 +18,7 @@ import {
 } from '../lib/units';
 import { AuthImage } from '../components/AuthImage';
 import { Modal } from '../components/Modal';
+import { UrlImageInput } from '../components/UrlImageInput';
 import { Button, Field, Input, Select, Textarea } from '../components/ui';
 
 const today = (): string => new Date().toISOString().slice(0, 10);
@@ -308,14 +309,18 @@ function ImagesEditor({
     ? ammo.images.map((img) => ({ key: img.id, path: img.imagePath }))
     : staged.map((p) => ({ key: p, path: p }));
 
+  const addPath = async (imagePath: string) => {
+    if (ammo) await addImg.mutateAsync(imagePath);
+    else onStagedChange([...staged, imagePath]);
+  };
+
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setBusy(true);
     try {
       const { imagePath } = await uploadImage(file);
-      if (ammo) await addImg.mutateAsync(imagePath);
-      else onStagedChange([...staged, imagePath]);
+      await addPath(imagePath);
     } finally {
       setBusy(false);
       e.target.value = '';
@@ -353,6 +358,9 @@ function ImagesEditor({
             className="hidden"
           />
         </label>
+      </div>
+      <div className="mt-2">
+        <UrlImageInput onAdded={addPath} />
       </div>
     </div>
   );
