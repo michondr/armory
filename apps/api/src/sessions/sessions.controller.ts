@@ -136,6 +136,6 @@ export class SessionsController {
     @Param('targetId') targetId: string,
     @Body(new ZodValidationPipe(setShotsSchema)) body: SetShotsInput,
   ): Promise<SessionDetail> {
-    return this.sessions.setShots(user.id, id, setId, targetId, body.ringValues);
+    return this.sessions.setShots(user.id, id, setId, targetId, body);
   }
 }

@@ -203,10 +203,15 @@ export const sessionsApi = {
     apiFetch<SessionDetail>(`/sessions/${id}/sets/${setId}/targets/${targetId}`, {
       method: 'DELETE',
     }),
-  setShots: (id: string, setId: string, targetId: string, ringValues: number[]) =>
+  setShots: (
+    id: string,
+    setId: string,
+    targetId: string,
+    input: { ringValues?: number[]; zones?: string[] },
+  ) =>
     apiFetch<SessionDetail>(`/sessions/${id}/sets/${setId}/targets/${targetId}/shots`, {
       method: 'PUT',
-      body: JSON.stringify({ ringValues }),
+      body: JSON.stringify(input),
     }),
 };
 

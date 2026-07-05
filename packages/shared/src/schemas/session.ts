@@ -47,10 +47,15 @@ export type CreateTargetInput = z.infer<typeof createTargetSchema>;
 export const updateTargetSchema = createTargetSchema.partial();
 export type UpdateTargetInput = z.infer<typeof updateTargetSchema>;
 
-/** Manual scoring: replace a target's shots with a list of ring values. */
-export const setShotsSchema = z.object({
-  ringValues: z.array(z.number().min(0)),
-});
+/** Manual scoring: replace a target's shots with ring values (RINGS) or zones (IPSC). */
+export const setShotsSchema = z
+  .object({
+    ringValues: z.array(z.number().min(0)).optional(),
+    zones: z.array(z.string().min(1).max(4)).optional(),
+  })
+  .refine((v) => v.ringValues !== undefined || v.zones !== undefined, {
+    message: 'Provide ringValues or zones',
+  });
 export type SetShotsInput = z.infer<typeof setShotsSchema>;
 
 // ---- read models ----

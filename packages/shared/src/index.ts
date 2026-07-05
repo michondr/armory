@@ -7,4 +7,5 @@ export * from './schemas/gun.js';
 export * from './schemas/ammo.js';
 export * from './schemas/cartridge.js';
 export * from './schemas/stats.js';
+export * from './schemas/score-input.js';
 export * from './schemas/session.js';

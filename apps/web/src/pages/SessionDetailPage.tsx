@@ -2,7 +2,10 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
+  parseRingValues,
+  parseZones,
   SCORING_SYSTEMS,
+  zonePoints,
   type CreateTargetInput,
   type SessionDetail,
   type SetDto,
@@ -279,37 +282,47 @@ function TargetScorer({
   target: TargetDto;
 }) {
   const apply = useSessionUpdate(sessionId);
-  const initial = target.shots
-    .map((s) => s.ringValue)
-    .filter((v): v is number => v != null)
-    .join(' ');
+  const isIpsc = target.scoringSystem === 'IPSC';
+
+  const initial = isIpsc
+    ? target.shots
+        .map((s) => s.zone)
+        .filter((z): z is string => !!z)
+        .join(' ')
+    : target.shots
+        .map((s) => s.ringValue)
+        .filter((v): v is number => v != null)
+        .join(' ');
   const [text, setText] = useState(initial);
 
-  const parsed = text
-    .split(/[^0-9.]+/)
-    .filter(Boolean)
-    .map(Number)
-    .filter((n) => !Number.isNaN(n));
+  const zones = isIpsc ? parseZones(text) : [];
+  const ringValues = isIpsc ? [] : parseRingValues(text);
 
   const save = useMutation({
-    mutationFn: () => sessionsApi.setShots(sessionId, setId, target.id, parsed),
+    mutationFn: () =>
+      sessionsApi.setShots(sessionId, setId, target.id, isIpsc ? { zones } : { ringValues }),
     onSuccess: apply,
   });
 
-  const sum = parsed.reduce((a, b) => a + b, 0);
-  const avg = parsed.length ? (sum / parsed.length).toFixed(2) : '–';
+  const summary = isIpsc
+    ? `${zones.length} hits · ${zones.reduce((s, z) => s + zonePoints(z), 0)} pts`
+    : (() => {
+        const sum = ringValues.reduce((a, b) => a + b, 0);
+        const avg = ringValues.length ? (sum / ringValues.length).toFixed(2) : '–';
+        return `${ringValues.length} shots · sum ${sum} · avg ${avg}`;
+      })();
 
   return (
     <div className="mt-2 space-y-1">
       <Input
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Ring values, e.g. 10 10 9 9 9 8"
+        placeholder={
+          isIpsc ? 'Zones, e.g. A A C M or 2xA 1xC 1xM' : 'Ring values, e.g. 10 10 9 or 3x10 2x9'
+        }
       />
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
-        <span>
-          {parsed.length} shots · sum {sum} · avg {avg}
-        </span>
+        <span>{summary}</span>
         <Button type="button" onClick={() => save.mutate()} disabled={save.isPending}>
           {save.isPending ? 'Saving…' : 'Save score'}
         </Button>

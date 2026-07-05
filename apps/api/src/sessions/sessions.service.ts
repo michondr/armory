@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import {
   computeShotStats,
+  zonePoints,
   type CreateSessionInput,
   type CreateSetInput,
   type CreateTargetInput,
@@ -9,6 +10,7 @@ import {
   type SessionDetail,
   type SessionListItem,
   type SetDto,
+  type SetShotsInput,
   type ShotStats,
   type TargetDto,
   type UpdateSessionInput,
@@ -211,26 +213,33 @@ export class SessionsService {
     return this.get(userId, sessionId);
   }
 
-  /** Manual scoring: replace the target's shots with the given ring values. */
+  /** Manual scoring: replace the target's shots with ring values (RINGS) or zones (IPSC). */
   async setShots(
     userId: string,
     sessionId: string,
     setId: string,
     targetId: string,
-    ringValues: number[],
+    input: SetShotsInput,
   ): Promise<SessionDetail> {
     await this.ensureTarget(userId, sessionId, setId, targetId);
-    const totalScore = ringValues.reduce((a, b) => a + b, 0);
+
+    // IPSC zones store the zone letter + its point value; rings store the value.
+    const shots: { ringValue: number | null; zone: string | null }[] = input.zones?.length
+      ? input.zones.map((z) => ({ zone: z.toUpperCase(), ringValue: zonePoints(z) }))
+      : (input.ringValues ?? []).map((v) => ({ ringValue: v, zone: null }));
+
+    const totalScore = shots.reduce((sum, s) => sum + (s.ringValue ?? 0), 0);
 
     await this.prisma.$transaction([
       this.prisma.shot.deleteMany({ where: { targetId } }),
-      ...(ringValues.length
+      ...(shots.length
         ? [
             this.prisma.shot.createMany({
-              data: ringValues.map((v, i) => ({
+              data: shots.map((s, i) => ({
                 targetId,
                 index: i,
-                ringValue: v,
+                ringValue: s.ringValue,
+                zone: s.zone,
                 source: 'MANUAL' as const,
               })),
             }),
@@ -239,9 +248,9 @@ export class SessionsService {
       this.prisma.target.update({
         where: { id: targetId },
         data: {
-          totalScore: ringValues.length ? totalScore : null,
+          totalScore: shots.length ? totalScore : null,
           status: 'MANUAL',
-          ...(ringValues.length ? { shotCount: ringValues.length } : {}),
+          ...(shots.length ? { shotCount: shots.length } : {}),
         },
       }),
     ]);
