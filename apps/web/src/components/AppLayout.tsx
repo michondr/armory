@@ -1,10 +1,9 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { Button } from './ui';
 import { ThemeToggle } from './ThemeToggle';
 
 const NAV = [
-  { to: '/', label: 'Home', icon: '🏠', end: true },
   { to: '/guns', label: 'Guns', icon: '🔫' },
   { to: '/ammo', label: 'Ammo', icon: '🧊' },
   { to: '/sessions', label: 'Sessions', icon: '🎯' },
@@ -26,7 +25,7 @@ function bottomNavClass({ isActive }: { isActive: boolean }): string {
 }
 
 export function AppLayout() {
-  const { auth, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
 
   const onLogout = async () => {
@@ -38,20 +37,23 @@ export function AppLayout() {
     <div className="min-h-full">
       <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/80 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/80">
         <div className="mx-auto flex max-w-4xl items-center gap-4 px-4 py-3">
-          <span className="flex items-center gap-2 text-lg font-bold tracking-tight">
+          <Link
+            to="/"
+            className="flex items-center gap-2 text-lg font-bold tracking-tight"
+            title="Home"
+          >
             <img src="/favicon.svg" alt="" className="h-6 w-6" />
             Armory
-          </span>
+          </Link>
           {/* Desktop inline nav */}
           <nav className="hidden items-center gap-1 sm:flex">
             {NAV.map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.end} className={topNavClass}>
+              <NavLink key={item.to} to={item.to} className={topNavClass}>
                 {item.label}
               </NavLink>
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <span className="hidden text-sm text-neutral-500 sm:inline">{auth?.user.email}</span>
             <ThemeToggle />
             <Button variant="ghost" onClick={onLogout}>
               Log out
@@ -68,7 +70,7 @@ export function AppLayout() {
       {/* Mobile bottom tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-neutral-200 bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 sm:hidden">
         {NAV.map((item) => (
-          <NavLink key={item.to} to={item.to} end={item.end} className={bottomNavClass}>
+          <NavLink key={item.to} to={item.to} className={bottomNavClass}>
             <span className="text-lg leading-none">{item.icon}</span>
             {item.label}
           </NavLink>

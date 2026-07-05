@@ -378,31 +378,55 @@ function ImagesEditor({
 function PriceLog({ ammo }: { ammo: Ammo }) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ['ammo'] });
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [date, setDate] = useState(today());
   const [price, setPrice] = useState('');
   const [currency, setCurrency] = useState(ammo.priceEntries[0]?.currency ?? 'CZK');
   const [quantity, setQuantity] = useState('50');
   const [vendor, setVendor] = useState('');
 
-  const add = useMutation({
-    mutationFn: () =>
-      ammoApi.addPrice(ammo.id, {
+  const reset = () => {
+    setEditingId(null);
+    setDate(today());
+    setPrice('');
+    setQuantity('50');
+    setVendor('');
+  };
+
+  const save = useMutation({
+    mutationFn: () => {
+      const input = {
         date,
         pricePerRound: Number(price),
         currency,
         quantity: Number(quantity || '1'),
         vendor: vendor.trim() || null,
-      }),
+      };
+      return editingId
+        ? ammoApi.updatePrice(ammo.id, editingId, input)
+        : ammoApi.addPrice(ammo.id, input);
+    },
     onSuccess: () => {
-      setPrice('');
-      setVendor('');
+      reset();
       invalidate();
     },
   });
   const del = useMutation({
     mutationFn: (entryId: string) => ammoApi.deletePrice(ammo.id, entryId),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      reset();
+      invalidate();
+    },
   });
+
+  const startEdit = (p: Ammo['priceEntries'][number]) => {
+    setEditingId(p.id);
+    setDate(p.date.slice(0, 10));
+    setPrice(String(p.pricePerRound));
+    setCurrency(p.currency);
+    setQuantity(String(p.quantity));
+    setVendor(p.vendor ?? '');
+  };
 
   return (
     <div className="border-t border-neutral-200 pt-4 dark:border-neutral-800">
@@ -417,14 +441,27 @@ function PriceLog({ ammo }: { ammo: Ammo }) {
           <table className="w-full text-sm">
             <tbody>
               {ammo.priceEntries.map((p) => (
-                <tr key={p.id} className="text-neutral-600 dark:text-neutral-300">
+                <tr
+                  key={p.id}
+                  className={`text-neutral-600 dark:text-neutral-300 ${
+                    editingId === p.id ? 'bg-emerald-500/10' : ''
+                  }`}
+                >
                   <td className="whitespace-nowrap py-1 pr-3">{p.date.slice(0, 10)}</td>
                   <td className="whitespace-nowrap pr-3">
                     {p.pricePerRound.toFixed(2)} {p.currency}/rd
                   </td>
                   <td className="pr-3">×{p.quantity}</td>
                   <td className="pr-3 text-neutral-400">{p.vendor}</td>
-                  <td className="text-right">
+                  <td className="whitespace-nowrap text-right">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(p)}
+                      className="mr-3 text-neutral-400 hover:text-emerald-600"
+                      aria-label="Edit price entry"
+                    >
+                      ✎
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -466,9 +503,14 @@ function PriceLog({ ammo }: { ammo: Ammo }) {
           onChange={(e) => setVendor(e.target.value)}
           className="w-36"
         />
-        <Button type="button" onClick={() => price && add.mutate()} disabled={add.isPending}>
-          Add
+        <Button type="button" onClick={() => price && save.mutate()} disabled={save.isPending}>
+          {editingId ? 'Save' : 'Add'}
         </Button>
+        {editingId && (
+          <Button type="button" variant="ghost" onClick={reset}>
+            Cancel
+          </Button>
+        )}
       </div>
     </div>
   );

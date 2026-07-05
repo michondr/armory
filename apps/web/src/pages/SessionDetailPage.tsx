@@ -1,5 +1,6 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   parseRingValues,
@@ -214,6 +215,380 @@ function TargetBlock({
 
 type PlacedShot = { x: number; y: number; ringValue: number | null; zone: string | null };
 
+function ValueSelector({
+  values,
+  selected,
+  onSelect,
+  counts,
+  dark,
+}: {
+  values: string[];
+  selected: string;
+  onSelect: (v: string) => void;
+  counts?: Record<string, number>;
+  dark?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-start gap-2">
+      <span className={`mr-1 mt-2 text-xs ${dark ? 'text-neutral-300' : 'text-neutral-500'}`}>
+        Value:
+      </span>
+      {values.map((v) => (
+        <div key={v} className="flex w-8 flex-col items-center">
+          <button
+            type="button"
+            onClick={() => onSelect(v)}
+            className={`h-8 w-8 rounded-full text-sm font-medium transition ${
+              selected === v
+                ? 'bg-emerald-600 text-white'
+                : dark
+                  ? 'bg-neutral-700 text-neutral-100 hover:bg-neutral-600'
+                  : 'bg-neutral-200 text-neutral-700 hover:bg-neutral-300 dark:bg-neutral-800 dark:text-neutral-200'
+            }`}
+          >
+            {v}
+          </button>
+          <span className={`mt-0.5 h-3 text-[10px] leading-3 ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+            {counts?.[v] ? `×${counts[v]}` : ''}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Marker whose on-screen size stays constant regardless of the zoom scale. */
+function Marker({
+  shot,
+  scale,
+  onRemove,
+}: {
+  shot: PlacedShot;
+  scale: number;
+  onRemove?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={
+        onRemove
+          ? (e) => {
+              e.stopPropagation();
+              onRemove();
+            }
+          : undefined
+      }
+      title={onRemove ? 'Tap to remove' : undefined}
+      style={{
+        left: `${shot.x * 100}%`,
+        top: `${shot.y * 100}%`,
+        transform: `translate(-50%, -50%) scale(${1 / scale})`,
+        transformOrigin: 'center',
+      }}
+      className={`absolute flex h-6 w-6 items-center justify-center rounded-full border-2 border-red-500 bg-black/60 text-[10px] font-bold text-white ${
+        onRemove ? '' : 'pointer-events-none'
+      }`}
+    >
+      {shot.ringValue ?? shot.zone}
+    </button>
+  );
+}
+
+// Horizontal wheel must travel this many px (accumulated) to advance the value
+// one step. Raise to require more movement, lower for a hair trigger.
+const VALUE_STEP_THRESHOLD = 130;
+
+// Keyframes for the directional "pop" of the cursor value badge when the
+// horizontal wheel advances to the next value.
+const POP_KEYFRAMES = `
+@keyframes armory-pop-right { 0% { transform: translateX(-14px) scale(.6); opacity: .15 } 55% { transform: translateX(3px) scale(1.1) } 100% { transform: translateX(0) scale(1); opacity: 1 } }
+@keyframes armory-pop-left { 0% { transform: translateX(14px) scale(.6); opacity: .15 } 55% { transform: translateX(-3px) scale(1.1) } 100% { transform: translateX(0) scale(1); opacity: 1 } }
+`;
+
+/** Zoomable placement surface: tap to place the selected value, tap a marker to remove.
+ *  Vertical wheel zooms (handled by the lib); horizontal wheel steps the value. */
+function PlaceSurface({
+  target,
+  isIpsc,
+  values,
+  selected,
+  onSelect,
+  shots,
+  commit,
+  imgClass,
+}: {
+  target: TargetDto;
+  isIpsc: boolean;
+  values: string[];
+  selected: string;
+  onSelect: (v: string) => void;
+  shots: PlacedShot[];
+  commit: (next: PlacedShot[]) => void;
+  imgClass: string;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
+  const wheelAcc = useRef(0);
+  // Only show the cursor value badge with a real pointer (mouse), not on touch.
+  const [finePointer] = useState(() => window.matchMedia('(pointer: fine)').matches);
+
+  // Horizontal-wheel stepper UI: popKey/popDir replay a directional "pop" each
+  // time the value advances; wheelDir/wheelProgress drive a chevron + fill bar
+  // showing which way you're scrolling and how close the next step is.
+  const [popKey, setPopKey] = useState(0);
+  const [popDir, setPopDir] = useState(0);
+  const [wheelDir, setWheelDir] = useState<number | null>(null);
+  const [wheelProgress, setWheelProgress] = useState(0);
+  const popKeyRef = useRef(0);
+  const hideDirTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+
+  const normFromEvent = (e: React.MouseEvent): { x: number; y: number } | null => {
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return null;
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    if (x < 0 || x > 1 || y < 0 || y > 1) return null;
+    return { x, y };
+  };
+
+  const addAt = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const p = normFromEvent(e);
+    if (!p) return;
+    const shot: PlacedShot = isIpsc
+      ? { x: p.x, y: p.y, ringValue: null, zone: selected }
+      : { x: p.x, y: p.y, ringValue: Number(selected), zone: null };
+    commit([...shots, shot]);
+  };
+
+  const step = (dir: number): boolean => {
+    const idx = values.indexOf(selectedRef.current);
+    const n = idx + dir;
+    if (n < 0 || n >= values.length) return false;
+    const next = values[n]!;
+    selectedRef.current = next; // optimistic: chained steps in one event advance
+    onSelect(next);
+    return true;
+  };
+  const stepRef = useRef(step);
+  stepRef.current = step;
+
+  const scheduleHideDir = () => {
+    if (hideDirTimer.current) clearTimeout(hideDirTimer.current);
+    hideDirTimer.current = setTimeout(() => {
+      setWheelDir(null);
+      setWheelProgress(0);
+    }, 500);
+  };
+
+  // Horizontal wheel (incl. the MX Master thumb wheel) steps the value; vertical is
+  // left to the zoom library. Bound natively + non-passive because the zoom lib can
+  // swallow React's onWheel before it fires. Reversing direction resets the
+  // accumulator so the indicator reflips instead of instantly popping the other way.
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      const lines = e.deltaMode === 1;
+      const dx = lines ? e.deltaX * 16 : e.deltaX;
+      const dy = lines ? e.deltaY * 16 : e.deltaY;
+      if (Math.abs(dx) <= Math.abs(dy)) return; // vertical → let the lib zoom
+      e.preventDefault();
+      e.stopPropagation();
+      const dir = dx > 0 ? 1 : -1;
+      if (Math.sign(wheelAcc.current) && Math.sign(wheelAcc.current) !== dir) {
+        wheelAcc.current = 0; // reversed → start the fill fresh from this side
+      }
+      wheelAcc.current += dx;
+      setWheelDir(dir);
+      scheduleHideDir();
+      while (Math.abs(wheelAcc.current) >= VALUE_STEP_THRESHOLD) {
+        const s = Math.sign(wheelAcc.current);
+        if (stepRef.current(s > 0 ? 1 : -1)) {
+          popKeyRef.current += 1;
+          setPopKey(popKeyRef.current);
+          setPopDir(s > 0 ? 1 : -1);
+        }
+        wheelAcc.current -= s * VALUE_STEP_THRESHOLD;
+      }
+      setWheelProgress(Math.min(1, Math.abs(wheelAcc.current) / VALUE_STEP_THRESHOLD));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      if (hideDirTimer.current) clearTimeout(hideDirTimer.current);
+    };
+  }, []);
+
+  const surface = (
+    <div
+      ref={wrapRef}
+      onClick={addAt}
+      onMouseMove={(e) => setCursor(normFromEvent(e))}
+      onMouseLeave={() => setCursor(null)}
+      className="relative inline-block cursor-crosshair select-none"
+    >
+      <style>{POP_KEYFRAMES}</style>
+      <AuthImage filename={target.imagePath!} className={imgClass} />
+      {shots.map((s, i) => (
+        <Marker
+          key={i}
+          shot={s}
+          scale={scale}
+          onRemove={() => commit(shots.filter((_, idx) => idx !== i))}
+        />
+      ))}
+      {finePointer && cursor && (
+        <div
+          style={{
+            left: `${cursor.x * 100}%`,
+            top: `${cursor.y * 100}%`,
+            transform: `translate(12px, -140%) scale(${1 / scale})`,
+            transformOrigin: 'left bottom',
+          }}
+          className="pointer-events-none absolute"
+        >
+          <div
+            key={popKey}
+            className="flex items-center gap-0.5 rounded-md bg-emerald-600 px-1.5 py-0.5 text-[11px] font-bold text-white shadow"
+            style={
+              popKey === 0
+                ? undefined
+                : {
+                    animation: `${popDir === 1 ? 'armory-pop-right' : 'armory-pop-left'} 220ms cubic-bezier(.2,.8,.2,1)`,
+                  }
+            }
+          >
+            {wheelDir === -1 && <span className="text-emerald-200">‹</span>}
+            <span>{selected}</span>
+            {wheelDir === 1 && <span className="text-emerald-200">›</span>}
+          </div>
+          {wheelDir !== null && (
+            <div
+              className={`mt-0.5 flex h-0.5 w-12 overflow-hidden rounded-full bg-white/25 ${
+                wheelDir === -1 ? 'justify-end' : 'justify-start'
+              }`}
+            >
+              <div
+                className="h-full rounded-full bg-emerald-300"
+                style={{ width: `${Math.round(wheelProgress * 100)}%` }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <TransformWrapper
+      minScale={1}
+      maxScale={12}
+      doubleClick={{ disabled: true }}
+      // smooth=true (lib default) makes the zoom step = smoothStep * |deltaY|,
+      // so it scales with wheel velocity — trackpads / MX Master freespin stay
+      // proportional instead of detonating to maxScale. ~0.04 ≈ 400% per notch
+      // on a discrete mouse. Bump up to zoom faster, down for finer control.
+      wheel={{ smoothStep: 0.04 }}
+      onTransformed={(_ref, state) => setScale(state.scale)}
+      centerOnInit
+    >
+      {({ zoomIn, zoomOut, resetTransform }) => (
+        <>
+          <div
+            className="absolute right-3 top-3 z-10 flex flex-col gap-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {[
+              ['+', () => zoomIn()],
+              ['−', () => zoomOut()],
+              ['⟲', () => resetTransform()],
+            ].map(([label, fn]) => (
+              <button
+                key={label as string}
+                type="button"
+                onClick={fn as () => void}
+                className="grid h-10 w-10 place-items-center rounded-full bg-white/90 text-lg font-bold text-neutral-800 shadow"
+              >
+                {label as string}
+              </button>
+            ))}
+          </div>
+          <TransformComponent
+            wrapperStyle={{ width: '100%', height: '100%' }}
+            contentStyle={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {surface}
+          </TransformComponent>
+        </>
+      )}
+    </TransformWrapper>
+  );
+}
+
+/** Fullscreen overlay for precise placement; Back / Esc close it. */
+function FullscreenPlacer({
+  onClose,
+  header,
+  children,
+}: {
+  onClose: () => void;
+  header: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    window.history.pushState({ armoryFull: true }, '');
+    let byBack = false;
+    const onPop = () => {
+      byBack = true;
+      onCloseRef.current();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current();
+    };
+    window.addEventListener('popstate', onPop);
+    window.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+      const state = window.history.state as { armoryFull?: boolean } | null;
+      if (!byBack && state?.armoryFull) window.history.back();
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/95">
+      <div className="flex items-center gap-3 p-3">
+        <div className="flex-1 overflow-x-auto">{header}</div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 text-3xl leading-none text-white/80 hover:text-white"
+          aria-label="Close"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="relative flex-1 overflow-hidden" onClick={onClose}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /** Tap-to-place scoring: pick a value, then tap the photo where each hole is. */
 function HolePlacer({
   sessionId,
@@ -231,7 +606,7 @@ function HolePlacer({
     ? ['A', 'C', 'D', 'M']
     : Array.from({ length: max + 1 }, (_, i) => String(max - i));
   const [selected, setSelected] = useState(values[0]!);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const [full, setFull] = useState(false);
 
   // Local list is authoritative (avoids races between quick taps and the server).
   const [shots, setShots] = useState<PlacedShot[]>(() =>
@@ -249,71 +624,68 @@ function HolePlacer({
     persist.mutate(next);
   };
 
-  const addAt = (e: React.MouseEvent) => {
-    const rect = wrapRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    if (x < 0 || x > 1 || y < 0 || y > 1) return;
-    const shot: PlacedShot = isIpsc
-      ? { x, y, ringValue: null, zone: selected }
-      : { x, y, ringValue: Number(selected), zone: null };
-    commit([...shots, shot]);
-  };
-
-  const total = shots.reduce(
-    (sum, s) => sum + (s.ringValue ?? (s.zone ? zonePoints(s.zone) : 0)),
-    0,
-  );
+  const total = shots.reduce((sum, s) => sum + (s.ringValue ?? (s.zone ? zonePoints(s.zone) : 0)), 0);
+  const counts: Record<string, number> = {};
+  for (const s of shots) {
+    const key = isIpsc ? (s.zone ?? '') : s.ringValue != null ? String(s.ringValue) : '';
+    if (key) counts[key] = (counts[key] ?? 0) + 1;
+  }
 
   return (
     <div className="mt-3 space-y-2">
-      <div className="flex flex-wrap items-center gap-1">
-        <span className="mr-1 text-xs text-neutral-500">Value:</span>
-        {values.map((v) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => setSelected(v)}
-            className={`h-8 w-8 rounded-full text-sm font-medium transition ${
-              selected === v
-                ? 'bg-emerald-600 text-white'
-                : 'bg-neutral-200 text-neutral-700 hover:bg-neutral-300 dark:bg-neutral-800 dark:text-neutral-200'
-            }`}
-          >
-            {v}
-          </button>
-        ))}
-      </div>
       <p className="text-xs text-neutral-500">
-        Tap the photo to place a <b>{selected}</b>. Tap a marker to remove it. · {shots.length} shots
-        · total {total}
+        {shots.length} shots · total {total} ·{' '}
+        <button
+          type="button"
+          onClick={() => setFull(true)}
+          className="font-medium text-emerald-600 hover:underline"
+        >
+          ⛶ Zoom &amp; score
+        </button>
       </p>
+      {/* Read-only preview; tap to open the zoomable scoring view. */}
       <div
-        ref={wrapRef}
-        onClick={addAt}
-        className="relative inline-block max-w-full cursor-crosshair select-none"
+        onClick={() => setFull(true)}
+        className="relative inline-block max-w-full cursor-zoom-in"
       >
         <AuthImage
           filename={target.imagePath!}
-          className="block max-h-[70vh] w-auto max-w-full rounded-lg"
+          className="block max-h-[45vh] w-auto max-w-full rounded-lg"
         />
         {shots.map((s, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              commit(shots.filter((_, idx) => idx !== i));
-            }}
-            style={{ left: `${s.x * 100}%`, top: `${s.y * 100}%` }}
-            title="Tap to remove"
-            className="absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-red-500 bg-black/60 text-[10px] font-bold text-white"
-          >
-            {s.ringValue ?? s.zone}
-          </button>
+          <Marker key={i} shot={s} scale={1} />
         ))}
       </div>
+      {full && (
+        <FullscreenPlacer
+          onClose={() => setFull(false)}
+          header={
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <ValueSelector
+                values={values}
+                selected={selected}
+                onSelect={setSelected}
+                counts={counts}
+                dark
+              />
+              <span className="text-sm font-medium text-white">
+                {shots.length} shots · {total} pts
+              </span>
+            </div>
+          }
+        >
+          <PlaceSurface
+            target={target}
+            isIpsc={isIpsc}
+            values={values}
+            selected={selected}
+            onSelect={setSelected}
+            shots={shots}
+            commit={commit}
+            imgClass="block max-h-[82vh] max-w-[92vw]"
+          />
+        </FullscreenPlacer>
+      )}
     </div>
   );
 }
@@ -330,7 +702,6 @@ function TargetEditForm({
   onDone: () => void;
 }) {
   const apply = useSessionUpdate(sessionId);
-  const [shotCount, setShotCount] = useState(target.shotCount.toString());
   const [maxScore, setMaxScore] = useState(target.maxScorePerShot?.toString() ?? '');
   const [scoring, setScoring] = useState<string>(target.scoringSystem);
   const [imagePath, setImagePath] = useState<string | null>(target.imagePath);
@@ -338,7 +709,6 @@ function TargetEditForm({
   const save = useMutation({
     mutationFn: () =>
       sessionsApi.updateTarget(sessionId, setId, target.id, {
-        shotCount: Number(shotCount || '0'),
         maxScorePerShot: maxScore ? Number(maxScore) : null,
         scoringSystem: scoring as CreateTargetInput['scoringSystem'],
         imagePath,
@@ -351,14 +721,8 @@ function TargetEditForm({
 
   return (
     <div className="mt-3 space-y-3 border-t border-neutral-200 pt-3 dark:border-neutral-800">
-      <ImageField value={imagePath} onChange={setImagePath} placeholder="🎯" />
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Shots">
-          <Input type="number" value={shotCount} onChange={(e) => setShotCount(e.target.value)} />
-        </Field>
-        <Field label="Max score/shot">
-          <Input type="number" value={maxScore} onChange={(e) => setMaxScore(e.target.value)} />
-        </Field>
+      <ImageField value={imagePath} onChange={setImagePath} placeholder="🎯" allowUrl={false} />
+      <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Scoring">
           <Select value={scoring} onChange={(e) => setScoring(e.target.value)}>
             {SCORING_SYSTEMS.map((s) => (
@@ -368,6 +732,11 @@ function TargetEditForm({
             ))}
           </Select>
         </Field>
+        {scoring === 'RINGS' && (
+          <Field label="Max score/shot">
+            <Input type="number" value={maxScore} onChange={(e) => setMaxScore(e.target.value)} />
+          </Field>
+        )}
       </div>
       <div className="flex gap-2">
         <Button type="button" onClick={() => save.mutate()} disabled={save.isPending}>
@@ -477,7 +846,6 @@ function AddSetForm({ sessionId }: { sessionId: string }) {
 
 function AddTargetForm({ sessionId, setId }: { sessionId: string; setId: string }) {
   const apply = useSessionUpdate(sessionId);
-  const [shotCount, setShotCount] = useState('10');
   const [maxScore, setMaxScore] = useState('10');
   const [scoring, setScoring] = useState('RINGS');
   const [imagePath, setImagePath] = useState<string | null>(null);
@@ -486,7 +854,6 @@ function AddTargetForm({ sessionId, setId }: { sessionId: string; setId: string 
   const add = useMutation({
     mutationFn: () =>
       sessionsApi.addTarget(sessionId, setId, {
-        shotCount: Number(shotCount || '0'),
         maxScorePerShot: maxScore ? Number(maxScore) : null,
         scoringSystem: scoring as CreateTargetInput['scoringSystem'],
         imagePath,
@@ -508,14 +875,8 @@ function AddTargetForm({ sessionId, setId }: { sessionId: string; setId: string 
 
   return (
     <div className="space-y-3 rounded-xl border border-dashed border-neutral-300 p-3 dark:border-neutral-700">
-      <ImageField value={imagePath} onChange={setImagePath} placeholder="🎯" />
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Shots">
-          <Input type="number" value={shotCount} onChange={(e) => setShotCount(e.target.value)} />
-        </Field>
-        <Field label="Max score/shot">
-          <Input type="number" value={maxScore} onChange={(e) => setMaxScore(e.target.value)} />
-        </Field>
+      <ImageField value={imagePath} onChange={setImagePath} placeholder="🎯" allowUrl={false} />
+      <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Scoring">
           <Select value={scoring} onChange={(e) => setScoring(e.target.value)}>
             {SCORING_SYSTEMS.map((s) => (
@@ -525,6 +886,11 @@ function AddTargetForm({ sessionId, setId }: { sessionId: string; setId: string 
             ))}
           </Select>
         </Field>
+        {scoring === 'RINGS' && (
+          <Field label="Max score/shot">
+            <Input type="number" value={maxScore} onChange={(e) => setMaxScore(e.target.value)} />
+          </Field>
+        )}
       </div>
       <div className="flex gap-2">
         <Button type="button" onClick={() => add.mutate()} disabled={add.isPending}>

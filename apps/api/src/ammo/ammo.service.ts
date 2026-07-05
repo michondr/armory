@@ -6,6 +6,7 @@ import type {
   CreateAmmoInput,
   CreatePriceEntryInput,
   UpdateAmmoInput,
+  UpdatePriceEntryInput,
 } from '@armory/shared';
 import { ImagesService } from '../images/images.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -104,6 +105,29 @@ export class AmmoService {
         quantity: input.quantity ?? 1,
         vendor: input.vendor ?? null,
         note: input.note ?? null,
+      },
+    });
+    return this.get(userId, ammoId);
+  }
+
+  async updatePriceEntry(
+    userId: string,
+    ammoId: string,
+    entryId: string,
+    input: UpdatePriceEntryInput,
+  ): Promise<Ammo> {
+    await this.findOwned(userId, ammoId);
+    const existing = await this.prisma.ammoPriceEntry.findFirst({ where: { id: entryId, ammoId } });
+    if (!existing) throw new NotFoundException('Price entry not found');
+    await this.prisma.ammoPriceEntry.update({
+      where: { id: entryId },
+      data: {
+        date: input.date ? new Date(input.date) : undefined,
+        pricePerRound: input.pricePerRound,
+        currency: input.currency,
+        quantity: input.quantity,
+        vendor: input.vendor,
+        note: input.note,
       },
     });
     return this.get(userId, ammoId);

@@ -34,7 +34,7 @@ export const createSetSchema = z.object({
 export type CreateSetInput = z.infer<typeof createSetSchema>;
 
 export const createTargetSchema = z.object({
-  shotCount: z.number().int().min(0).default(0),
+  shotCount: z.number().int().min(0).optional(),
   scoringSystem: z
     .enum(SCORING_SYSTEMS as [ScoringSystem, ...ScoringSystem[]])
     .default('RINGS'),

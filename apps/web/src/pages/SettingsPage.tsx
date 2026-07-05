@@ -110,8 +110,9 @@ export function SettingsPage() {
             </span>
           </div>
           <p className="mb-4 text-sm text-neutral-500">
-            Used to notify you when target scoring finishes. The password is encrypted at rest and
-            never returned.
+            Used to send you notifications. Emails will be sent to your address:{' '}
+            <b className="text-neutral-700 dark:text-neutral-200">{data.email}</b>. The password is
+            encrypted at rest and never returned.
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Host">
@@ -164,7 +165,16 @@ function CartridgesCard() {
   const { data: cartridges } = useQuery({ queryKey: ['cartridges'], queryFn: cartridgesApi.list });
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const invalidate = () => qc.invalidateQueries({ queryKey: ['cartridges'] });
+
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const add = useMutation({
     mutationFn: () => cartridgesApi.create({ name: name.trim() }),
@@ -175,46 +185,59 @@ function CartridgesCard() {
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Failed to add'),
   });
-  const del = useMutation({
-    mutationFn: (id: string) => cartridgesApi.remove(id),
-    onSuccess: invalidate,
+  const delMany = useMutation({
+    mutationFn: (ids: string[]) => Promise.all(ids.map((id) => cartridgesApi.remove(id))),
+    onSuccess: () => {
+      setSelected(new Set());
+      invalidate();
+    },
   });
   const defaults = useMutation({ mutationFn: () => cartridgesApi.addDefaults(), onSuccess: invalidate });
 
   return (
     <Card>
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-medium">Cartridges</h2>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => defaults.mutate()}
-          disabled={defaults.isPending}
-        >
-          {defaults.isPending ? 'Adding…' : 'Add common + used'}
-        </Button>
-      </div>
-      <p className="mb-3 text-sm text-neutral-500">
-        The caliber options for guns and ammo. Matching names let sessions filter ammo by gun.
-      </p>
-      <div className="mb-4 flex flex-wrap gap-2">
-        {(cartridges ?? []).map((c) => (
-          <span
-            key={c.id}
-            className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-3 py-1 text-sm dark:bg-neutral-800"
-          >
-            {c.name}
+        <div className="flex gap-1">
+          {selected.size > 0 && (
             <button
               type="button"
               onClick={() => {
-                if (confirm(`Delete cartridge "${c.name}"?`)) del.mutate(c.id);
+                if (confirm(`Delete ${selected.size} cartridge(s)?`)) delMany.mutate([...selected]);
               }}
-              className="text-neutral-400 hover:text-red-500"
-              aria-label={`Delete ${c.name}`}
+              disabled={delMany.isPending}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-red-500 hover:bg-red-500/10"
             >
-              ✕
+              Delete {selected.size}
             </button>
-          </span>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => defaults.mutate()}
+            disabled={defaults.isPending}
+          >
+            {defaults.isPending ? 'Adding…' : 'Add common + used'}
+          </Button>
+        </div>
+      </div>
+      <p className="mb-3 text-sm text-neutral-500">
+        The caliber options for guns and ammo. Tap to select one or more, then delete.
+      </p>
+      <div className="mb-4 flex flex-wrap gap-2">
+        {(cartridges ?? []).map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => toggle(c.id)}
+            className={`rounded-full px-3 py-1 text-sm transition ${
+              selected.has(c.id)
+                ? 'bg-red-500/20 text-red-700 ring-1 ring-red-500 dark:text-red-300'
+                : 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700'
+            }`}
+          >
+            {c.name}
+          </button>
         ))}
         {cartridges && cartridges.length === 0 && (
           <span className="text-sm text-neutral-400">No cartridges yet.</span>

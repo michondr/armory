@@ -26,6 +26,16 @@ export const createPriceEntrySchema = z.object({
 });
 export type CreatePriceEntryInput = z.infer<typeof createPriceEntrySchema>;
 
+export const updatePriceEntrySchema = z.object({
+  date: isoDateString.optional(),
+  pricePerRound: z.number().positive().optional(),
+  currency: z.string().min(1).max(8).optional(),
+  quantity: z.number().int().positive().optional(),
+  vendor: z.string().max(120).nullable().optional(),
+  note: z.string().max(1000).nullable().optional(),
+});
+export type UpdatePriceEntryInput = z.infer<typeof updatePriceEntrySchema>;
+
 export interface AmmoImage {
   id: string;
   imagePath: string;

@@ -13,11 +13,13 @@ import {
   createAmmoSchema,
   createPriceEntrySchema,
   updateAmmoSchema,
+  updatePriceEntrySchema,
   type Ammo,
   type AmmoSuggestion,
   type CreateAmmoInput,
   type CreatePriceEntryInput,
   type UpdateAmmoInput,
+  type UpdatePriceEntryInput,
 } from '@armory/shared';
 import { z } from 'zod';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
@@ -78,6 +80,16 @@ export class AmmoController {
     @Body(new ZodValidationPipe(createPriceEntrySchema)) body: CreatePriceEntryInput,
   ): Promise<Ammo> {
     return this.ammo.addPriceEntry(user.id, id, body);
+  }
+
+  @Patch(':id/prices/:entryId')
+  updatePrice(
+    @CurrentUser() user: AuthedUser,
+    @Param('id') id: string,
+    @Param('entryId') entryId: string,
+    @Body(new ZodValidationPipe(updatePriceEntrySchema)) body: UpdatePriceEntryInput,
+  ): Promise<Ammo> {
+    return this.ammo.updatePriceEntry(user.id, id, entryId, body);
   }
 
   @Delete(':id/prices/:entryId')

@@ -168,6 +168,11 @@ export const ammoApi = {
     apiFetch<AmmoSuggestion[]>(`/ammo/suggest${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   addPrice: (id: string, input: CreatePriceEntryInput) =>
     apiFetch<Ammo>(`/ammo/${id}/prices`, { method: 'POST', body: JSON.stringify(input) }),
+  updatePrice: (id: string, entryId: string, input: CreatePriceEntryInput) =>
+    apiFetch<Ammo>(`/ammo/${id}/prices/${entryId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
   deletePrice: (id: string, entryId: string) =>
     apiFetch<Ammo>(`/ammo/${id}/prices/${entryId}`, { method: 'DELETE' }),
   addImage: (id: string, imagePath: string) =>

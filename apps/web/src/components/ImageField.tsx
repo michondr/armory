@@ -9,10 +9,12 @@ export function ImageField({
   value,
   onChange,
   placeholder = '📷',
+  allowUrl = true,
 }: {
   value: string | null;
   onChange: (filename: string | null) => void;
   placeholder?: string;
+  allowUrl?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -63,7 +65,7 @@ export function ImageField({
           {error && <span className="text-xs text-red-500">{error}</span>}
         </div>
       </div>
-      <UrlImageInput onAdded={(filename) => onChange(filename)} />
+      {allowUrl && <UrlImageInput onAdded={(filename) => onChange(filename)} />}
     </div>
   );
 }
