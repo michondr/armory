@@ -56,22 +56,6 @@ services:
       - 'traefik.http.routers.armory.tls.certresolver=${TRAEFIK_CERTRESOLVER:-myvercelresolver}'
       - 'traefik.http.services.armory.loadbalancer.server.port=80'
 
-  # Python/OpenCV scorer: polls scoring_jobs, scores target photos, emails on done.
-  scorer:
-    build:
-      context: ./apps/scorer
-    container_name: armory-scorer
-    restart: unless-stopped
-    env_file: .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - images:/data/images:ro
-    # internal sync-scoring endpoint used by the api (Settings > scoring test)
-    expose:
-      - '8000'
-
 volumes:
   pgdata:
   images:

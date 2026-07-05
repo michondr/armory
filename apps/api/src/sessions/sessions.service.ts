@@ -6,7 +6,6 @@ import {
   type CreateSessionInput,
   type CreateSetInput,
   type CreateTargetInput,
-  type Point,
   type SessionDetail,
   type SessionListItem,
   type SetDto,
@@ -28,10 +27,6 @@ const detailInclude = {
         orderBy: { createdAt: 'asc' },
         include: {
           shots: { orderBy: { index: 'asc' } },
-          scoringJobs: {
-            where: { status: { in: ['PENDING', 'PROCESSING'] } },
-            select: { id: true },
-          },
         },
       },
     },
@@ -219,7 +214,10 @@ export class SessionsService {
     return this.get(userId, sessionId);
   }
 
-  /** Manual scoring: replace the target's shots with ring values (RINGS) or zones (IPSC). */
+  /**
+   * Replace the target's shots. Accepts positioned shots (tap-to-place, with x/y)
+   * or quick text entry via ringValues (RINGS) / zones (IPSC).
+   */
   async setShots(
     userId: string,
     sessionId: string,
@@ -229,10 +227,29 @@ export class SessionsService {
   ): Promise<SessionDetail> {
     await this.ensureTarget(userId, sessionId, setId, targetId);
 
-    // IPSC zones store the zone letter + its point value; rings store the value.
-    const shots: { ringValue: number | null; zone: string | null }[] = input.zones?.length
-      ? input.zones.map((z) => ({ zone: z.toUpperCase(), ringValue: zonePoints(z) }))
-      : (input.ringValues ?? []).map((v) => ({ ringValue: v, zone: null }));
+    type ShotData = {
+      ringValue: number | null;
+      zone: string | null;
+      x: number | null;
+      y: number | null;
+    };
+    let shots: ShotData[];
+    if (input.shots !== undefined) {
+      shots = input.shots.map((s) =>
+        s.zone
+          ? { zone: s.zone.toUpperCase(), ringValue: zonePoints(s.zone), x: s.x, y: s.y }
+          : { ringValue: s.ringValue ?? 0, zone: null, x: s.x, y: s.y },
+      );
+    } else if (input.zones !== undefined) {
+      shots = input.zones.map((z) => ({
+        zone: z.toUpperCase(),
+        ringValue: zonePoints(z),
+        x: null,
+        y: null,
+      }));
+    } else {
+      shots = (input.ringValues ?? []).map((v) => ({ ringValue: v, zone: null, x: null, y: null }));
+    }
 
     const totalScore = shots.reduce((sum, s) => sum + (s.ringValue ?? 0), 0);
 
@@ -246,6 +263,8 @@ export class SessionsService {
                 index: i,
                 ringValue: s.ringValue,
                 zone: s.zone,
+                x: s.x,
+                y: s.y,
                 source: 'MANUAL' as const,
               })),
             }),
@@ -260,36 +279,6 @@ export class SessionsService {
         },
       }),
     ]);
-    return this.get(userId, sessionId);
-  }
-
-  /** Queue an AI scoring job for a target that has an image. */
-  async requestScore(
-    userId: string,
-    sessionId: string,
-    setId: string,
-    targetId: string,
-  ): Promise<SessionDetail> {
-    await this.ensureTarget(userId, sessionId, setId, targetId);
-    const target = await this.prisma.target.findUnique({ where: { id: targetId } });
-    if (!target?.imagePath) throw new BadRequestException('Target has no image to score');
-    // Don't queue twice if one is already active.
-    const active = await this.prisma.scoringJob.findFirst({
-      where: { targetId, status: { in: ['PENDING', 'PROCESSING'] } },
-    });
-    if (!active) await this.prisma.scoringJob.create({ data: { targetId } });
-    return this.get(userId, sessionId);
-  }
-
-  /** Mark an AI-scored target as reviewed/approved. */
-  async approve(
-    userId: string,
-    sessionId: string,
-    setId: string,
-    targetId: string,
-  ): Promise<SessionDetail> {
-    await this.ensureTarget(userId, sessionId, setId, targetId);
-    await this.prisma.target.update({ where: { id: targetId }, data: { status: 'APPROVED' } });
     return this.get(userId, sessionId);
   }
 
@@ -350,7 +339,6 @@ export class SessionsService {
           source: sh.source,
         })),
         stats: statsFromShots(t.shots),
-        scoring: t.scoringJobs.length > 0,
       }));
       return {
         id: set.id,
@@ -384,10 +372,9 @@ function statsFromShots(shots: ShotRow[]): ShotStats {
   const scores = shots
     .map((sh) => sh.ringValue)
     .filter((v): v is number => v !== null && v !== undefined);
-  const positions: Point[] = shots
-    .filter((sh) => sh.x !== null && sh.y !== null)
-    .map((sh) => ({ x: sh.x as number, y: sh.y as number }));
-  return computeShotStats(scores, positions.length >= 2 ? positions : undefined);
+  // Positions are normalized (0..1); grouping in real units needs the target's
+  // physical size, so we don't report grouping yet.
+  return computeShotStats(scores);
 }
 
 function gunSummary(gun: { id: string; name: string; caliber: string | null; imagePath: string | null }) {

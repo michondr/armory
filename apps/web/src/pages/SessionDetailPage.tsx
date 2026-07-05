@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -9,7 +9,6 @@ import {
   type CreateTargetInput,
   type SessionDetail,
   type SetDto,
-  type Shot,
   type TargetDto,
 } from '@armory/shared';
 import { sessionsApi } from '../lib/api';
@@ -25,9 +24,6 @@ export function SessionDetailPage() {
   const { data: session, isLoading } = useQuery({
     queryKey: ['session', id],
     queryFn: () => sessionsApi.get(id),
-    // Poll while any target is being scored so results appear when ready.
-    refetchInterval: (query) =>
-      query.state.data?.sets.some((s) => s.targets.some((t) => t.scoring)) ? 2500 : false,
   });
 
   const del = useMutation({
@@ -153,15 +149,6 @@ function TargetBlock({
     mutationFn: () => sessionsApi.removeTarget(sessionId, setId, target.id),
     onSuccess: apply,
   });
-  const score = useMutation({
-    mutationFn: () => sessionsApi.requestScore(sessionId, setId, target.id),
-    onSuccess: apply,
-  });
-  const approve = useMutation({
-    mutationFn: () => sessionsApi.approve(sessionId, setId, target.id),
-    onSuccess: apply,
-  });
-  const hasPositions = target.shots.some((s) => s.x != null && s.y != null);
 
   return (
     <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
@@ -209,37 +196,6 @@ function TargetBlock({
         </div>
       </div>
 
-      {/* AI scoring controls */}
-      {target.imagePath && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {target.scoring ? (
-            <span className="text-xs text-amber-600 dark:text-amber-400">⏳ Scoring photo…</span>
-          ) : (
-            <Button variant="ghost" onClick={() => score.mutate()} disabled={score.isPending}>
-              {hasPositions ? 'Re-score photo' : 'Score from photo'}
-            </Button>
-          )}
-          {target.status === 'SCORED' && !target.scoring && (
-            <>
-              <span className="text-xs text-neutral-500">AI-scored — review &amp; approve</span>
-              <Button onClick={() => approve.mutate()} disabled={approve.isPending}>
-                Approve
-              </Button>
-            </>
-          )}
-          {target.status === 'APPROVED' && (
-            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-              ✓ Approved
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Detected holes overlaid on the photo */}
-      {target.imagePath && hasPositions && (
-        <TargetImageOverlay filename={target.imagePath} shots={target.shots} />
-      )}
-
       {editing ? (
         <TargetEditForm
           sessionId={sessionId}
@@ -247,6 +203,8 @@ function TargetBlock({
           target={target}
           onDone={() => setEditing(false)}
         />
+      ) : target.imagePath ? (
+        <HolePlacer sessionId={sessionId} setId={setId} target={target} />
       ) : (
         <TargetScorer sessionId={sessionId} setId={setId} target={target} />
       )}
@@ -254,20 +212,106 @@ function TargetBlock({
   );
 }
 
-function TargetImageOverlay({ filename, shots }: { filename: string; shots: Shot[] }) {
-  const dots = shots.filter((s) => s.x != null && s.y != null);
+type PlacedShot = { x: number; y: number; ringValue: number | null; zone: string | null };
+
+/** Tap-to-place scoring: pick a value, then tap the photo where each hole is. */
+function HolePlacer({
+  sessionId,
+  setId,
+  target,
+}: {
+  sessionId: string;
+  setId: string;
+  target: TargetDto;
+}) {
+  const apply = useSessionUpdate(sessionId);
+  const isIpsc = target.scoringSystem === 'IPSC';
+  const max = target.maxScorePerShot ?? 10;
+  const values: string[] = isIpsc
+    ? ['A', 'C', 'D', 'M']
+    : Array.from({ length: max + 1 }, (_, i) => String(max - i));
+  const [selected, setSelected] = useState(values[0]!);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Local list is authoritative (avoids races between quick taps and the server).
+  const [shots, setShots] = useState<PlacedShot[]>(() =>
+    target.shots
+      .filter((s) => s.x != null && s.y != null)
+      .map((s) => ({ x: s.x as number, y: s.y as number, ringValue: s.ringValue, zone: s.zone })),
+  );
+
+  const persist = useMutation({
+    mutationFn: (next: PlacedShot[]) => sessionsApi.setShots(sessionId, setId, target.id, { shots: next }),
+    onSuccess: apply,
+  });
+  const commit = (next: PlacedShot[]) => {
+    setShots(next);
+    persist.mutate(next);
+  };
+
+  const addAt = (e: React.MouseEvent) => {
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    if (x < 0 || x > 1 || y < 0 || y > 1) return;
+    const shot: PlacedShot = isIpsc
+      ? { x, y, ringValue: null, zone: selected }
+      : { x, y, ringValue: Number(selected), zone: null };
+    commit([...shots, shot]);
+  };
+
+  const total = shots.reduce(
+    (sum, s) => sum + (s.ringValue ?? (s.zone ? zonePoints(s.zone) : 0)),
+    0,
+  );
+
   return (
-    <div className="mt-2">
-      <div className="relative inline-block max-w-full">
-        <AuthImage filename={filename} className="block max-h-80 w-auto max-w-full rounded-lg" />
-        {dots.map((s) => (
-          <span
-            key={s.id}
-            style={{ left: `${s.x! * 100}%`, top: `${s.y! * 100}%` }}
-            className="absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-red-500 bg-black/50 text-[9px] font-bold text-white"
+    <div className="mt-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="mr-1 text-xs text-neutral-500">Value:</span>
+        {values.map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setSelected(v)}
+            className={`h-8 w-8 rounded-full text-sm font-medium transition ${
+              selected === v
+                ? 'bg-emerald-600 text-white'
+                : 'bg-neutral-200 text-neutral-700 hover:bg-neutral-300 dark:bg-neutral-800 dark:text-neutral-200'
+            }`}
           >
-            {s.ringValue ?? s.zone ?? ''}
-          </span>
+            {v}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-neutral-500">
+        Tap the photo to place a <b>{selected}</b>. Tap a marker to remove it. · {shots.length} shots
+        · total {total}
+      </p>
+      <div
+        ref={wrapRef}
+        onClick={addAt}
+        className="relative inline-block max-w-full cursor-crosshair select-none"
+      >
+        <AuthImage
+          filename={target.imagePath!}
+          className="block max-h-[70vh] w-auto max-w-full rounded-lg"
+        />
+        {shots.map((s, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              commit(shots.filter((_, idx) => idx !== i));
+            }}
+            style={{ left: `${s.x * 100}%`, top: `${s.y * 100}%` }}
+            title="Tap to remove"
+            className="absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-red-500 bg-black/60 text-[10px] font-bold text-white"
+          >
+            {s.ringValue ?? s.zone}
+          </button>
         ))}
       </div>
     </div>

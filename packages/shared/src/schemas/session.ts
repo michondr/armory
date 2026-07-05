@@ -47,14 +47,28 @@ export type CreateTargetInput = z.infer<typeof createTargetSchema>;
 export const updateTargetSchema = createTargetSchema.partial();
 export type UpdateTargetInput = z.infer<typeof updateTargetSchema>;
 
-/** Manual scoring: replace a target's shots with ring values (RINGS) or zones (IPSC). */
+/**
+ * Replace a target's shots. Three ways to provide them:
+ * - `shots`: positioned shots (from tap-to-place on the photo), each with x/y (0..1)
+ * - `ringValues`: quick text entry for RINGS (no positions)
+ * - `zones`: quick text entry for IPSC (no positions)
+ */
+export const placedShotSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  ringValue: z.number().min(0).nullable().optional(),
+  zone: z.string().min(1).max(4).nullable().optional(),
+});
+export type PlacedShotInput = z.infer<typeof placedShotSchema>;
+
 export const setShotsSchema = z
   .object({
+    shots: z.array(placedShotSchema).optional(),
     ringValues: z.array(z.number().min(0)).optional(),
     zones: z.array(z.string().min(1).max(4)).optional(),
   })
-  .refine((v) => v.ringValues !== undefined || v.zones !== undefined, {
-    message: 'Provide ringValues or zones',
+  .refine((v) => v.shots !== undefined || v.ringValues !== undefined || v.zones !== undefined, {
+    message: 'Provide shots, ringValues, or zones',
   });
 export type SetShotsInput = z.infer<typeof setShotsSchema>;
 
@@ -81,8 +95,6 @@ export interface TargetDto {
   notes: string | null;
   shots: Shot[];
   stats: ShotStats;
-  /** True while a scoring job is queued/running for this target. */
-  scoring: boolean;
 }
 
 export interface SetDto {

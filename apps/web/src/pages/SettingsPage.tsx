@@ -1,14 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ANGULAR_UNITS, UNIT_SYSTEMS, type UpdateSettingsInput } from '@armory/shared';
-import {
-  ApiError,
-  cartridgesApi,
-  scoringTest,
-  settingsApi,
-  type ScoreTestResult,
-} from '../lib/api';
-import { AuthImage } from '../components/AuthImage';
+import { ApiError, cartridgesApi, settingsApi } from '../lib/api';
 import { Button, Card, Field, Input, Select } from '../components/ui';
 
 interface FormState {
@@ -162,109 +155,7 @@ export function SettingsPage() {
       </form>
 
       <CartridgesCard />
-      <ScoringTestCard />
     </div>
-  );
-}
-
-function ScoringTestCard() {
-  const [file, setFile] = useState<File | null>(null);
-  const [shotCount, setShotCount] = useState('0');
-  const [maxScore, setMaxScore] = useState('10');
-  const [result, setResult] = useState<ScoreTestResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const run = async () => {
-    if (!file) return;
-    setBusy(true);
-    setError(null);
-    setResult(null);
-    try {
-      setResult(await scoringTest(file, Number(shotCount || '0'), Number(maxScore || '10')));
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Scoring failed');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Card>
-      <h2 className="mb-1 font-medium">Scoring test</h2>
-      <p className="mb-3 text-sm text-neutral-500">
-        Upload a target photo to see what the scorer detects — for tuning. Leave shots at 0 to
-        detect all; set it to cap the count.
-      </p>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm">
-          <span className="mb-1 block font-medium text-neutral-600 dark:text-neutral-300">Photo</span>
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="text-sm"
-          />
-        </label>
-        <Field label="Shots (0 = all)">
-          <Input
-            type="number"
-            value={shotCount}
-            onChange={(e) => setShotCount(e.target.value)}
-            className="w-24"
-          />
-        </Field>
-        <Field label="Max score/shot">
-          <Input
-            type="number"
-            value={maxScore}
-            onChange={(e) => setMaxScore(e.target.value)}
-            className="w-28"
-          />
-        </Field>
-        <Button type="button" onClick={run} disabled={!file || busy}>
-          {busy ? 'Scoring…' : 'Run test'}
-        </Button>
-      </div>
-
-      {busy && (
-        <div className="mt-4 flex items-center gap-2 text-sm text-neutral-500">
-          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-neutral-300 border-t-emerald-600" />
-          Detecting holes…
-        </div>
-      )}
-
-      {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
-
-      {result && !busy && (
-        <div className="mt-4 space-y-3">
-          <p className="text-sm">
-            <b>{result.shots.length}</b> holes detected · total <b>{result.total}</b>
-            {result.shots.length === 0 && (
-              <span className="text-amber-600 dark:text-amber-400">
-                {' '}
-                — nothing found; try a flatter, well-lit, straight-on photo
-              </span>
-            )}
-          </p>
-          <div className="relative inline-block max-w-full">
-            <AuthImage
-              filename={result.imagePath}
-              className="block max-h-96 w-auto max-w-full rounded-lg"
-            />
-            {result.shots.map((s, i) => (
-              <span
-                key={i}
-                style={{ left: `${s.x * 100}%`, top: `${s.y * 100}%` }}
-                className="absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-red-500 bg-black/50 text-[9px] font-bold text-white"
-              >
-                {s.ring}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-    </Card>
   );
 }
 

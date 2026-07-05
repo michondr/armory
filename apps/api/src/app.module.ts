@@ -7,7 +7,6 @@ import { GunsModule } from './guns/guns.module';
 import { HealthController } from './health/health.controller';
 import { ImagesModule } from './images/images.module';
 import { PrismaModule } from './prisma/prisma.module';
-import { ScoringModule } from './scoring/scoring.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { UsersModule } from './users/users.module';
 
@@ -22,7 +21,6 @@ import { UsersModule } from './users/users.module';
     AmmoModule,
     SessionsModule,
     CartridgesModule,
-    ScoringModule,
   ],
   controllers: [HealthController],
 })
