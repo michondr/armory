@@ -4,6 +4,7 @@ import { User } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'node:crypto';
 import type { AuthResponse, LoginInput, RegisterInput } from '@armory/shared';
+import { DEFAULT_CARTRIDGES } from '../cartridges/default-cartridges';
 import { EnvService } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -22,6 +23,11 @@ export class AuthService {
     const passwordHash = await argon2.hash(input.password);
     const user = await this.prisma.user.create({
       data: { email: input.email, passwordHash, displayName: input.displayName ?? null },
+    });
+    // Seed the user's cartridge list with the common defaults.
+    await this.prisma.cartridge.createMany({
+      data: DEFAULT_CARTRIDGES.map((name) => ({ userId: user.id, name })),
+      skipDuplicates: true,
     });
     return this.issueTokens(user);
   }

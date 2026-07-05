@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AmmoModule } from './ammo/ammo.module';
 import { AuthModule } from './auth/auth.module';
+import { CartridgesModule } from './cartridges/cartridges.module';
 import { EnvModule } from './config/env.module';
 import { GunsModule } from './guns/guns.module';
 import { HealthController } from './health/health.controller';
@@ -19,6 +20,7 @@ import { UsersModule } from './users/users.module';
     GunsModule,
     AmmoModule,
     SessionsModule,
+    CartridgesModule,
   ],
   controllers: [HealthController],
 })

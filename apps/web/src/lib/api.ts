@@ -2,7 +2,9 @@ import type {
   Ammo,
   AmmoSuggestion,
   AuthResponse,
+  Cartridge,
   CreateAmmoInput,
+  CreateCartridgeInput,
   CreateGunInput,
   CreatePriceEntryInput,
   CreateSessionInput,
@@ -206,4 +208,12 @@ export const sessionsApi = {
       method: 'PUT',
       body: JSON.stringify({ ringValues }),
     }),
+};
+
+export const cartridgesApi = {
+  list: () => apiFetch<Cartridge[]>('/cartridges'),
+  create: (input: CreateCartridgeInput) =>
+    apiFetch<Cartridge>('/cartridges', { method: 'POST', body: JSON.stringify(input) }),
+  remove: (id: string) => apiFetch<{ ok: true }>(`/cartridges/${id}`, { method: 'DELETE' }),
+  addDefaults: () => apiFetch<Cartridge[]>('/cartridges/defaults', { method: 'POST' }),
 };

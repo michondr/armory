@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ANGULAR_UNITS, UNIT_SYSTEMS, type UpdateSettingsInput } from '@armory/shared';
-import { ApiError, settingsApi } from '../lib/api';
+import { ApiError, cartridgesApi, settingsApi } from '../lib/api';
 import { Button, Card, Field, Input, Select } from '../components/ui';
 
 interface FormState {
@@ -153,6 +153,88 @@ export function SettingsPage() {
           {error && <span className="text-sm text-red-500">{error}</span>}
         </div>
       </form>
+
+      <CartridgesCard />
     </div>
+  );
+}
+
+function CartridgesCard() {
+  const qc = useQueryClient();
+  const { data: cartridges } = useQuery({ queryKey: ['cartridges'], queryFn: cartridgesApi.list });
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['cartridges'] });
+
+  const add = useMutation({
+    mutationFn: () => cartridgesApi.create({ name: name.trim() }),
+    onSuccess: () => {
+      setName('');
+      setError(null);
+      invalidate();
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : 'Failed to add'),
+  });
+  const del = useMutation({
+    mutationFn: (id: string) => cartridgesApi.remove(id),
+    onSuccess: invalidate,
+  });
+  const defaults = useMutation({ mutationFn: () => cartridgesApi.addDefaults(), onSuccess: invalidate });
+
+  return (
+    <Card>
+      <div className="mb-1 flex items-center justify-between">
+        <h2 className="font-medium">Cartridges</h2>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => defaults.mutate()}
+          disabled={defaults.isPending}
+        >
+          {defaults.isPending ? 'Adding…' : 'Add common + used'}
+        </Button>
+      </div>
+      <p className="mb-3 text-sm text-neutral-500">
+        The caliber options for guns and ammo. Matching names let sessions filter ammo by gun.
+      </p>
+      <div className="mb-4 flex flex-wrap gap-2">
+        {(cartridges ?? []).map((c) => (
+          <span
+            key={c.id}
+            className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-3 py-1 text-sm dark:bg-neutral-800"
+          >
+            {c.name}
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`Delete cartridge "${c.name}"?`)) del.mutate(c.id);
+              }}
+              className="text-neutral-400 hover:text-red-500"
+              aria-label={`Delete ${c.name}`}
+            >
+              ✕
+            </button>
+          </span>
+        ))}
+        {cartridges && cartridges.length === 0 && (
+          <span className="text-sm text-neutral-400">No cartridges yet.</span>
+        )}
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) add.mutate();
+        }}
+        className="flex items-end gap-2"
+      >
+        <Field label="Add cartridge">
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. 6.5 PRC" />
+        </Field>
+        <Button type="submit" disabled={add.isPending}>
+          Add
+        </Button>
+      </form>
+      {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
+    </Card>
   );
 }

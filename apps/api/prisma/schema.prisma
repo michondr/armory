@@ -40,8 +40,23 @@ model User {
   guns          Gun[]
   ammo          Ammo[]
   sessions      Session[]
+  cartridges    Cartridge[]
 
   @@map("users")
+}
+
+// A user-managed list of cartridge/caliber names. Guns and ammo pick their
+// caliber from this list so they match exactly (used to filter ammo by gun).
+model Cartridge {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("cartridges")
 }
 
 enum BcModel {

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CreateGunInput, Gun } from '@armory/shared';
 import { ApiError, gunsApi } from '../lib/api';
 import { AuthImage } from '../components/AuthImage';
+import { CaliberSelect } from '../components/CaliberSelect';
 import { ImageField } from '../components/ImageField';
 import { Modal } from '../components/Modal';
 import { Button, Field, Input, Textarea } from '../components/ui';
@@ -149,7 +150,7 @@ function GunDetail({ gun, onClose }: { gun: Gun | null; onClose: () => void }) {
           <Input required value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
         <Field label="Caliber">
-          <Input value={caliber} onChange={(e) => setCaliber(e.target.value)} placeholder="9mm Luger" />
+          <CaliberSelect value={caliber} onChange={setCaliber} />
         </Field>
         <Field label="Purchase price">
           <Input

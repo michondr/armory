@@ -17,6 +17,7 @@ import {
   weightUnit,
 } from '../lib/units';
 import { AuthImage } from '../components/AuthImage';
+import { CaliberSelect } from '../components/CaliberSelect';
 import { Modal } from '../components/Modal';
 import { UrlImageInput } from '../components/UrlImageInput';
 import { Button, Field, Input, Select, Textarea } from '../components/ui';
