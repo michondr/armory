@@ -23,6 +23,10 @@ images/
 .idea/
 .claude/
 
+# python
+__pycache__/
+*.pyc
+
 # logs
 *.log
 npm-debug.log*

@@ -81,6 +81,8 @@ export interface TargetDto {
   notes: string | null;
   shots: Shot[];
   stats: ShotStats;
+  /** True while a scoring job is queued/running for this target. */
+  scoring: boolean;
 }
 
 export interface SetDto {

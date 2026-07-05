@@ -213,6 +213,14 @@ export const sessionsApi = {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
+  requestScore: (id: string, setId: string, targetId: string) =>
+    apiFetch<SessionDetail>(`/sessions/${id}/sets/${setId}/targets/${targetId}/score`, {
+      method: 'POST',
+    }),
+  approve: (id: string, setId: string, targetId: string) =>
+    apiFetch<SessionDetail>(`/sessions/${id}/sets/${setId}/targets/${targetId}/approve`, {
+      method: 'POST',
+    }),
 };
 
 export const cartridgesApi = {

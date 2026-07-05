@@ -138,4 +138,24 @@ export class SessionsController {
   ): Promise<SessionDetail> {
     return this.sessions.setShots(user.id, id, setId, targetId, body);
   }
+
+  @Post(':id/sets/:setId/targets/:targetId/score')
+  requestScore(
+    @CurrentUser() user: AuthedUser,
+    @Param('id') id: string,
+    @Param('setId') setId: string,
+    @Param('targetId') targetId: string,
+  ): Promise<SessionDetail> {
+    return this.sessions.requestScore(user.id, id, setId, targetId);
+  }
+
+  @Post(':id/sets/:setId/targets/:targetId/approve')
+  approve(
+    @CurrentUser() user: AuthedUser,
+    @Param('id') id: string,
+    @Param('setId') setId: string,
+    @Param('targetId') targetId: string,
+  ): Promise<SessionDetail> {
+    return this.sessions.approve(user.id, id, setId, targetId);
+  }
 }

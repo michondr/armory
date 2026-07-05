@@ -9,6 +9,7 @@ import {
   type CreateTargetInput,
   type SessionDetail,
   type SetDto,
+  type Shot,
   type TargetDto,
 } from '@armory/shared';
 import { sessionsApi } from '../lib/api';
@@ -24,6 +25,9 @@ export function SessionDetailPage() {
   const { data: session, isLoading } = useQuery({
     queryKey: ['session', id],
     queryFn: () => sessionsApi.get(id),
+    // Poll while any target is being scored so results appear when ready.
+    refetchInterval: (query) =>
+      query.state.data?.sets.some((s) => s.targets.some((t) => t.scoring)) ? 2500 : false,
   });
 
   const del = useMutation({
@@ -149,6 +153,15 @@ function TargetBlock({
     mutationFn: () => sessionsApi.removeTarget(sessionId, setId, target.id),
     onSuccess: apply,
   });
+  const score = useMutation({
+    mutationFn: () => sessionsApi.requestScore(sessionId, setId, target.id),
+    onSuccess: apply,
+  });
+  const approve = useMutation({
+    mutationFn: () => sessionsApi.approve(sessionId, setId, target.id),
+    onSuccess: apply,
+  });
+  const hasPositions = target.shots.some((s) => s.x != null && s.y != null);
 
   return (
     <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
@@ -195,6 +208,38 @@ function TargetBlock({
           </div>
         </div>
       </div>
+
+      {/* AI scoring controls */}
+      {target.imagePath && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {target.scoring ? (
+            <span className="text-xs text-amber-600 dark:text-amber-400">⏳ Scoring photo…</span>
+          ) : (
+            <Button variant="ghost" onClick={() => score.mutate()} disabled={score.isPending}>
+              {hasPositions ? 'Re-score photo' : 'Score from photo'}
+            </Button>
+          )}
+          {target.status === 'SCORED' && !target.scoring && (
+            <>
+              <span className="text-xs text-neutral-500">AI-scored — review &amp; approve</span>
+              <Button onClick={() => approve.mutate()} disabled={approve.isPending}>
+                Approve
+              </Button>
+            </>
+          )}
+          {target.status === 'APPROVED' && (
+            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              ✓ Approved
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Detected holes overlaid on the photo */}
+      {target.imagePath && hasPositions && (
+        <TargetImageOverlay filename={target.imagePath} shots={target.shots} />
+      )}
+
       {editing ? (
         <TargetEditForm
           sessionId={sessionId}
@@ -205,6 +250,26 @@ function TargetBlock({
       ) : (
         <TargetScorer sessionId={sessionId} setId={setId} target={target} />
       )}
+    </div>
+  );
+}
+
+function TargetImageOverlay({ filename, shots }: { filename: string; shots: Shot[] }) {
+  const dots = shots.filter((s) => s.x != null && s.y != null);
+  return (
+    <div className="mt-2">
+      <div className="relative inline-block max-w-full">
+        <AuthImage filename={filename} className="block max-h-80 w-auto max-w-full rounded-lg" />
+        {dots.map((s) => (
+          <span
+            key={s.id}
+            style={{ left: `${s.x! * 100}%`, top: `${s.y! * 100}%` }}
+            className="absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-red-500 bg-black/50 text-[9px] font-bold text-white"
+          >
+            {s.ringValue ?? s.zone ?? ''}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

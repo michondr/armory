@@ -26,7 +26,13 @@ const detailInclude = {
     include: {
       targets: {
         orderBy: { createdAt: 'asc' },
-        include: { shots: { orderBy: { index: 'asc' } } },
+        include: {
+          shots: { orderBy: { index: 'asc' } },
+          scoringJobs: {
+            where: { status: { in: ['PENDING', 'PROCESSING'] } },
+            select: { id: true },
+          },
+        },
       },
     },
   },
@@ -257,6 +263,36 @@ export class SessionsService {
     return this.get(userId, sessionId);
   }
 
+  /** Queue an AI scoring job for a target that has an image. */
+  async requestScore(
+    userId: string,
+    sessionId: string,
+    setId: string,
+    targetId: string,
+  ): Promise<SessionDetail> {
+    await this.ensureTarget(userId, sessionId, setId, targetId);
+    const target = await this.prisma.target.findUnique({ where: { id: targetId } });
+    if (!target?.imagePath) throw new BadRequestException('Target has no image to score');
+    // Don't queue twice if one is already active.
+    const active = await this.prisma.scoringJob.findFirst({
+      where: { targetId, status: { in: ['PENDING', 'PROCESSING'] } },
+    });
+    if (!active) await this.prisma.scoringJob.create({ data: { targetId } });
+    return this.get(userId, sessionId);
+  }
+
+  /** Mark an AI-scored target as reviewed/approved. */
+  async approve(
+    userId: string,
+    sessionId: string,
+    setId: string,
+    targetId: string,
+  ): Promise<SessionDetail> {
+    await this.ensureTarget(userId, sessionId, setId, targetId);
+    await this.prisma.target.update({ where: { id: targetId }, data: { status: 'APPROVED' } });
+    return this.get(userId, sessionId);
+  }
+
   // ---- helpers ----
 
   private async assertGun(userId: string, gunId: string): Promise<void> {
@@ -314,6 +350,7 @@ export class SessionsService {
           source: sh.source,
         })),
         stats: statsFromShots(t.shots),
+        scoring: t.scoringJobs.length > 0,
       }));
       return {
         id: set.id,
