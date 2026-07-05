@@ -38,7 +38,10 @@ export function AppLayout() {
     <div className="min-h-full">
       <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/80 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/80">
         <div className="mx-auto flex max-w-4xl items-center gap-4 px-4 py-3">
-          <span className="text-lg font-bold tracking-tight">🎯 Armory</span>
+          <span className="flex items-center gap-2 text-lg font-bold tracking-tight">
+            <img src="/favicon.svg" alt="" className="h-6 w-6" />
+            Armory
+          </span>
           {/* Desktop inline nav */}
           <nav className="hidden items-center gap-1 sm:flex">
             {NAV.map((item) => (

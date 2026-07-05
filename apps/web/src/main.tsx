@@ -30,3 +30,10 @@ createRoot(rootEl).render(
     </ThemeProvider>
   </StrictMode>,
 );
+
+// Register the service worker so the app is installable (Add to home screen).
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+  });
+}

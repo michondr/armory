@@ -38,7 +38,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       </div>
       <Card className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <div className="text-3xl">🎯</div>
+          <img src="/favicon.svg" alt="" className="mx-auto h-12 w-12" />
           <h1 className="mt-2 text-xl font-semibold">
             {isRegister ? 'Create your account' : 'Welcome back'}
           </h1>
