@@ -14,6 +14,7 @@ const envSchema = z.object({
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, 'APP_ENCRYPTION_KEY must be 32 bytes hex (64 chars)'),
   IMAGES_DIR: z.string().default('/data/images'),
+  SCORER_URL: z.string().default('http://scorer:8000'),
 });
 
 export type Env = z.infer<typeof envSchema>;

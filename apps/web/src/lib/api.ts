@@ -121,6 +121,27 @@ export function uploadImageFromUrl(url: string): Promise<{ imagePath: string }> 
   });
 }
 
+export interface ScoreTestResult {
+  imagePath: string;
+  shots: { x: number; y: number; ring: number }[];
+  total: number;
+}
+
+/** Upload an image and run the scorer synchronously (Settings scoring test). */
+export async function scoringTest(
+  file: File,
+  shotCount: number,
+  maxScore: number,
+): Promise<ScoreTestResult> {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('shotCount', String(shotCount));
+  fd.append('maxScore', String(maxScore));
+  const res = await authFetch('/scoring/test', { method: 'POST', body: fd }, false);
+  if (!res.ok) await fail(res);
+  return (await res.json()) as ScoreTestResult;
+}
+
 /** Load a protected image as an object URL (so the <img> request carries auth). */
 export async function fetchImageObjectUrl(filename: string): Promise<string> {
   const res = await authFetch(`/images/${encodeURIComponent(filename)}`, {}, false);

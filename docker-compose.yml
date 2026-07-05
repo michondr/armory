@@ -68,6 +68,9 @@ services:
         condition: service_healthy
     volumes:
       - images:/data/images:ro
+    # internal sync-scoring endpoint used by the api (Settings > scoring test)
+    expose:
+      - '8000'
 
 volumes:
   pgdata:

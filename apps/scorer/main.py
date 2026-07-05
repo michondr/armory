@@ -1,9 +1,11 @@
 import os
+import threading
 import time
 import traceback
 
 import config
 import db
+import http_server
 import mailer
 import vision
 
@@ -60,8 +62,7 @@ def process_one(conn):
     return True
 
 
-def main():
-    _log("starting")
+def poll_loop():
     conn = None
     while True:
         try:
@@ -81,6 +82,13 @@ def main():
                 pass
             conn = None
             time.sleep(config.POLL_INTERVAL)
+
+
+def main():
+    _log("starting")
+    threading.Thread(target=poll_loop, daemon=True).start()
+    _log("http server on :8000")
+    http_server.serve(8000)
 
 
 if __name__ == "__main__":
