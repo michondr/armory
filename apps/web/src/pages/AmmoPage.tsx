@@ -228,7 +228,7 @@ function AmmoDetail({ ammo, onClose }: { ammo: Ammo | null; onClose: () => void 
           )}
         </div>
         <Field label="Caliber">
-          <Input value={caliber} onChange={(e) => setCaliber(e.target.value)} />
+          <CaliberSelect value={caliber} onChange={setCaliber} />
         </Field>
         <Field label={`Bullet weight (${weightUnit(system)})`}>
           <Input type="number" step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)} />
