@@ -62,15 +62,15 @@ jobs:
         working-directory: apps/mobile
         run: npx expo prebuild --platform android --no-install
 
-      - name: Assemble debug APK
+      - name: Assemble release APK (bundle embedded, debug-signed)
         working-directory: apps/mobile/android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: armory-android-apk
-          path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
+          path: apps/mobile/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
