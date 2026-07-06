@@ -108,6 +108,10 @@ sensible defaults), scope click value + unit. Outputs elevation + windage **clic
 **derivation breakdown** (drop cm → angular MOA/MRAD → clicks, time of flight, retained velocity,
 wind lag) surfaced as the "advanced info" learning view. Pure TS, offline.
 
+**Phase 4 update:** ballistics is available on **both web and mobile** (shared pure-TS core),
+not mobile-only as originally scoped — the web app gets a `/ballistics` page + scope-profile
+management. Scope profiles are a synced resource with full CRUD.
+
 ---
 
 ## UX
@@ -119,7 +123,8 @@ Dashboard (gun carousel; gun list by `lastShotAt` desc; recent sessions with hit
 avg/90%/10% + gun avatar; click gun → expand stats + filter sessions), Guns CRUD, Ammo CRUD +
 price log + fulltext + autosuggest, Session wizard (when/where/discipline/gun/ammo → sets →
 targets: optional photo + shotCount, manual **or** AI → finish), Session detail (holes overlaid,
-approve/adjust), Settings (units, angular unit, SMTP). **No ballistics UI on web** (mobile only).
+approve/adjust), Settings (units, angular unit, SMTP), **Ballistics** (calculator + scope
+profiles; added in Phase 4).
 
 ## Mobile app (Expo)
 Auth + offline token, SQLite mirror + sync engine + image upload queue, offline session capture

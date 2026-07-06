@@ -7,7 +7,10 @@ ARG VITE_API_URL=""
 ENV VITE_API_URL=$VITE_API_URL
 COPY . .
 RUN pnpm install --filter "@armory/web..."
+# Build the workspace libs web depends on (shared + ballistics) before the SPA,
+# so Vite can resolve their dist entry points.
 RUN pnpm --filter @armory/shared build \
+  && pnpm --filter @armory/ballistics build \
   && pnpm --filter @armory/web build
 
 # --- runtime stage: nginx serves the SPA and proxies /api to the api service ---

@@ -7,16 +7,19 @@ import type {
   CreateCartridgeInput,
   CreateGunInput,
   CreatePriceEntryInput,
+  CreateScopeProfileInput,
   CreateSessionInput,
   CreateSetInput,
   CreateTargetInput,
   Gun,
   LoginInput,
   RegisterInput,
+  ScopeProfile,
   SessionDetail,
   SessionListItem,
   UpdateAmmoInput,
   UpdateGunInput,
+  UpdateScopeProfileInput,
   UpdateSessionInput,
   UpdateSettingsInput,
   UpdateTargetInput,
@@ -222,6 +225,19 @@ export const sessionsApi = {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
+};
+
+export const scopeProfilesApi = {
+  list: (gunId?: string) =>
+    apiFetch<ScopeProfile[]>(`/scope-profiles${gunId ? `?gunId=${gunId}` : ''}`),
+  create: (input: CreateScopeProfileInput) =>
+    apiFetch<ScopeProfile>('/scope-profiles', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: UpdateScopeProfileInput) =>
+    apiFetch<ScopeProfile>(`/scope-profiles/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  remove: (id: string) => apiFetch<{ ok: true }>(`/scope-profiles/${id}`, { method: 'DELETE' }),
 };
 
 export const cartridgesApi = {

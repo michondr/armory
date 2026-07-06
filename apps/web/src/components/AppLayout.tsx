@@ -7,6 +7,7 @@ const NAV = [
   { to: '/guns', label: 'Guns', icon: '🔫' },
   { to: '/ammo', label: 'Ammo', icon: '🧊' },
   { to: '/sessions', label: 'Sessions', icon: '🎯' },
+  { to: '/ballistics', label: 'Ballistics', icon: '📈' },
   { to: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 

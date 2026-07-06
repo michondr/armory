@@ -10,6 +10,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@armory/ballistics": "workspace:*",
     "@armory/shared": "workspace:*",
     "@tanstack/react-query": "^5.62.7",
     "react": "^19.0.0",

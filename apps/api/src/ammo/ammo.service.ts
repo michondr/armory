@@ -13,8 +13,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AMMO_SEED } from './ammo-seed';
 
 const withRelations = {
-  images: { orderBy: { createdAt: 'asc' } },
-  priceEntries: { orderBy: { date: 'desc' } },
+  images: { where: { deletedAt: null }, orderBy: { createdAt: 'asc' } },
+  priceEntries: { where: { deletedAt: null }, orderBy: { date: 'desc' } },
 } satisfies Prisma.AmmoInclude;
 
 type AmmoWithRelations = Prisma.AmmoGetPayload<{ include: typeof withRelations }>;
@@ -98,6 +98,7 @@ export class AmmoService {
     await this.findOwned(userId, ammoId);
     await this.prisma.ammoPriceEntry.create({
       data: {
+        userId,
         ammoId,
         date: new Date(input.date),
         pricePerRound: input.pricePerRound,
@@ -117,7 +118,9 @@ export class AmmoService {
     input: UpdatePriceEntryInput,
   ): Promise<Ammo> {
     await this.findOwned(userId, ammoId);
-    const existing = await this.prisma.ammoPriceEntry.findFirst({ where: { id: entryId, ammoId } });
+    const existing = await this.prisma.ammoPriceEntry.findFirst({
+      where: { id: entryId, ammoId, deletedAt: null },
+    });
     if (!existing) throw new NotFoundException('Price entry not found');
     await this.prisma.ammoPriceEntry.update({
       where: { id: entryId },
@@ -135,8 +138,9 @@ export class AmmoService {
 
   async deletePriceEntry(userId: string, ammoId: string, entryId: string): Promise<Ammo> {
     await this.findOwned(userId, ammoId);
-    const deleted = await this.prisma.ammoPriceEntry.deleteMany({
-      where: { id: entryId, ammoId },
+    const deleted = await this.prisma.ammoPriceEntry.updateMany({
+      where: { id: entryId, ammoId, deletedAt: null },
+      data: { deletedAt: new Date() },
     });
     if (deleted.count === 0) throw new NotFoundException('Price entry not found');
     return this.get(userId, ammoId);
@@ -144,15 +148,17 @@ export class AmmoService {
 
   async addImage(userId: string, ammoId: string, imagePath: string): Promise<Ammo> {
     await this.findOwned(userId, ammoId);
-    await this.prisma.ammoImage.create({ data: { ammoId, imagePath } });
+    await this.prisma.ammoImage.create({ data: { userId, ammoId, imagePath } });
     return this.get(userId, ammoId);
   }
 
   async removeImage(userId: string, ammoId: string, imageId: string): Promise<Ammo> {
     await this.findOwned(userId, ammoId);
-    const img = await this.prisma.ammoImage.findFirst({ where: { id: imageId, ammoId } });
+    const img = await this.prisma.ammoImage.findFirst({
+      where: { id: imageId, ammoId, deletedAt: null },
+    });
     if (!img) throw new NotFoundException('Image not found');
-    await this.prisma.ammoImage.delete({ where: { id: imageId } });
+    await this.prisma.ammoImage.update({ where: { id: imageId }, data: { deletedAt: new Date() } });
     await this.images.remove(userId, img.imagePath);
     return this.get(userId, ammoId);
   }

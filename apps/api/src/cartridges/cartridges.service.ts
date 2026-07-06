@@ -9,7 +9,7 @@ export class CartridgesService {
 
   async list(userId: string): Promise<Cartridge[]> {
     const rows = await this.prisma.cartridge.findMany({
-      where: { userId },
+      where: { userId, deletedAt: null },
       orderBy: { name: 'asc' },
     });
     return rows.map((c) => ({ id: c.id, name: c.name }));
@@ -20,15 +20,23 @@ export class CartridgesService {
     const existing = await this.prisma.cartridge.findUnique({
       where: { userId_name: { userId, name } },
     });
-    if (existing) throw new ConflictException('Cartridge already exists');
+    if (existing && !existing.deletedAt) throw new ConflictException('Cartridge already exists');
+    // (userId, name) is unique across tombstones too, so re-adding revives the old row.
+    if (existing) {
+      const c = await this.prisma.cartridge.update({
+        where: { id: existing.id },
+        data: { deletedAt: null },
+      });
+      return { id: c.id, name: c.name };
+    }
     const c = await this.prisma.cartridge.create({ data: { userId, name } });
     return { id: c.id, name: c.name };
   }
 
   async remove(userId: string, id: string): Promise<void> {
-    const c = await this.prisma.cartridge.findFirst({ where: { id, userId } });
+    const c = await this.prisma.cartridge.findFirst({ where: { id, userId, deletedAt: null } });
     if (!c) throw new NotFoundException('Cartridge not found');
-    await this.prisma.cartridge.delete({ where: { id } });
+    await this.prisma.cartridge.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
   /** Add the default set + any calibers already used by the user's guns/ammo. */

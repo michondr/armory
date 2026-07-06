@@ -7,7 +7,9 @@ import { GunsModule } from './guns/guns.module';
 import { HealthController } from './health/health.controller';
 import { ImagesModule } from './images/images.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ScopeProfilesModule } from './scope-profiles/scope-profiles.module';
 import { SessionsModule } from './sessions/sessions.module';
+import { SyncModule } from './sync/sync.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -21,6 +23,8 @@ import { UsersModule } from './users/users.module';
     AmmoModule,
     SessionsModule,
     CartridgesModule,
+    ScopeProfilesModule,
+    SyncModule,
   ],
   controllers: [HealthController],
 })

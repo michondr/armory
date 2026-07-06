@@ -1,0 +1,76 @@
+name: Build Android APK
+
+# Produces a sideloadable (debug-signed) Armory APK entirely in CI — no EAS,
+# no local Android SDK needed. Trigger manually from the Actions tab, or it
+# runs automatically when mobile-relevant files land on main.
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+      - '.github/workflows/build-android.yml'
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_NO_TELEMETRY: '1'
+      NODE_OPTIONS: '--max-old-space-size=4096'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK (accept licenses)
+        uses: android-actions/setup-android@v3
+
+      # React Native / Metro don't follow pnpm's isolated symlink layout, so
+      # install hoisted (matches apps/mobile/.npmrc intent) — surfaces
+      # babel-preset-expo and other transitive deps to the bundler.
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile --node-linker=hoisted --shamefully-hoist=true
+
+      # @armory/ballistics & @armory/shared ship pre-bundled dist/ (single-file,
+      # no internal relative imports) which Metro reads cleanly. dist/ is
+      # gitignored, so it must be generated here before bundling.
+      - name: Build workspace packages
+        run: |
+          pnpm --filter @armory/ballistics build
+          pnpm --filter @armory/shared build
+
+      - name: Expo prebuild (generate native Android project)
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Assemble debug APK
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: armory-android-apk
+          path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

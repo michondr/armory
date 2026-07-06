@@ -34,3 +34,7 @@ pnpm-debug.log*
 
 # expo / mobile (later phases)
 apps/mobile/.expo/
+
+# root-owned leftovers from old docker runs; delete with sudo
+*.rootowned
+.pnpm-store.rootowned

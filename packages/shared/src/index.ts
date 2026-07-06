@@ -9,3 +9,5 @@ export * from './schemas/cartridge.js';
 export * from './schemas/stats.js';
 export * from './schemas/score-input.js';
 export * from './schemas/session.js';
+export * from './schemas/scope-profile.js';
+export * from './schemas/sync.js';

@@ -52,6 +52,7 @@ export const BcModel = {
 export type BcModel = (typeof BcModel)[keyof typeof BcModel];
 
 export const UNIT_SYSTEMS = Object.values(UnitSystem);
+export const SHOT_SOURCES = Object.values(ShotSource);
 export const ANGULAR_UNITS = Object.values(AngularUnit);
 export const DISCIPLINES = Object.values(Discipline);
 export const SCORING_SYSTEMS = Object.values(ScoringSystem);

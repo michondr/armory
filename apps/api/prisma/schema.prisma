@@ -36,11 +36,18 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  refreshTokens RefreshToken[]
-  guns          Gun[]
-  ammo          Ammo[]
-  sessions      Session[]
-  cartridges    Cartridge[]
+  refreshTokens    RefreshToken[]
+  guns             Gun[]
+  ammo             Ammo[]
+  sessions         Session[]
+  cartridges       Cartridge[]
+  ammoImages       AmmoImage[]
+  ammoPriceEntries AmmoPriceEntry[]
+  shootingSets     ShootingSet[]
+  targets          Target[]
+  shots            Shot[]
+  scopeProfiles    ScopeProfile[]
+  devices          Device[]
 
   @@map("users")
 }
@@ -48,14 +55,17 @@ model User {
 // A user-managed list of cartridge/caliber names. Guns and ammo pick their
 // caliber from this list so they match exactly (used to filter ammo by gun).
 model Cartridge {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   @@unique([userId, name])
   @@index([userId])
+  @@index([userId, updatedAt])
   @@map("cartridges")
 }
 
@@ -83,9 +93,11 @@ model Gun {
   updatedAt              DateTime  @updatedAt
   deletedAt              DateTime?
 
-  sessions Session[]
+  sessions      Session[]
+  scopeProfiles ScopeProfile[]
 
   @@index([userId])
+  @@index([userId, updatedAt])
   @@map("guns")
 }
 
@@ -111,34 +123,45 @@ model Ammo {
   sessions     Session[]
 
   @@index([userId])
+  @@index([userId, updatedAt])
   @@map("ammo")
 }
 
 model AmmoImage {
-  id        String   @id @default(uuid()) @db.Uuid
-  ammoId    String   @db.Uuid
-  ammo      Ammo     @relation(fields: [ammoId], references: [id], onDelete: Cascade)
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ammoId    String    @db.Uuid
+  ammo      Ammo      @relation(fields: [ammoId], references: [id], onDelete: Cascade)
   imagePath String
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   @@index([ammoId])
+  @@index([userId, updatedAt])
   @@map("ammo_images")
 }
 
 // A purchase record: price per round can vary across buys, so we keep a log.
 model AmmoPriceEntry {
-  id            String   @id @default(uuid()) @db.Uuid
-  ammoId        String   @db.Uuid
-  ammo          Ammo     @relation(fields: [ammoId], references: [id], onDelete: Cascade)
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ammoId        String    @db.Uuid
+  ammo          Ammo      @relation(fields: [ammoId], references: [id], onDelete: Cascade)
   date          DateTime
-  pricePerRound Decimal  @db.Decimal(12, 4)
-  currency      String   @default("CZK")
-  quantity      Int      @default(1)
+  pricePerRound Decimal   @db.Decimal(12, 4)
+  currency      String    @default("CZK")
+  quantity      Int       @default(1)
   vendor        String?
   note          String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
   @@index([ammoId])
+  @@index([userId, updatedAt])
   @@map("ammo_price_entries")
 }
 
@@ -188,23 +211,30 @@ model Session {
 
   @@index([userId])
   @@index([gunId])
+  @@index([userId, updatedAt])
   @@map("sessions")
 }
 
 // A string of fire at a given distance. IPSC time is captured here (used in Phase 5).
+// userId is denormalized onto sets/targets/shots so sync queries stay flat per table.
 model ShootingSet {
-  id              String   @id @default(uuid()) @db.Uuid
-  sessionId       String   @db.Uuid
-  session         Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  order           Int      @default(0)
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @db.Uuid
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId       String    @db.Uuid
+  session         Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  order           Int       @default(0)
   distanceM       Float?
   ipscTimeSeconds Float?
   notes           String?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
 
   targets Target[]
 
   @@index([sessionId])
+  @@index([userId, updatedAt])
   @@map("shooting_sets")
 }
 
@@ -212,6 +242,8 @@ model ShootingSet {
 // will add x/y positions. totalScore is recomputed whenever shots change.
 model Target {
   id              String        @id @default(uuid()) @db.Uuid
+  userId          String        @db.Uuid
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   setId           String        @db.Uuid
   set             ShootingSet   @relation(fields: [setId], references: [id], onDelete: Cascade)
   imagePath       String?
@@ -223,15 +255,19 @@ model Target {
   notes           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
 
   shots Shot[]
 
   @@index([setId])
+  @@index([userId, updatedAt])
   @@map("targets")
 }
 
 model Shot {
   id        String     @id @default(uuid()) @db.Uuid
+  userId    String     @db.Uuid
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   targetId  String     @db.Uuid
   target    Target     @relation(fields: [targetId], references: [id], onDelete: Cascade)
   index     Int        @default(0)
@@ -241,9 +277,50 @@ model Shot {
   zone      String?
   source    ShotSource @default(MANUAL)
   createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  deletedAt DateTime?
 
   @@index([targetId])
+  @@index([userId, updatedAt])
   @@map("shots")
+}
+
+// A scope/optic mounted on a gun: click value + zero, used by the ballistics
+// calculator (web + mobile) to turn drop/windage into clicks.
+model ScopeProfile {
+  id            String      @id @default(uuid()) @db.Uuid
+  userId        String      @db.Uuid
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gunId         String      @db.Uuid
+  gun           Gun         @relation(fields: [gunId], references: [id], onDelete: Cascade)
+  name          String
+  clickValue    Float       @default(0.1) // in angularUnit per click (e.g. 0.1 MRAD, 0.25 MOA)
+  angularUnit   AngularUnit @default(MRAD)
+  zeroRangeM    Float       @default(100)
+  sightHeightMm Float       @default(50)
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  deletedAt     DateTime?
+
+  @@index([gunId])
+  @@index([userId, updatedAt])
+  @@map("scope_profiles")
+}
+
+// A mobile device that syncs against this account (bookkeeping + sync diagnostics).
+model Device {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  platform   String?
+  lastSyncAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("devices")
 }
 
 // Hashed, per-device refresh tokens so we can rotate + revoke individually.

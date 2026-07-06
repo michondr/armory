@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Armory",
+    "slug": "armory",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "armory",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "space.michondr.armory"
+    },
+    "android": {
+      "package": "space.michondr.armory",
+      "adaptiveIcon": {
+        "backgroundColor": "#0a0a0a",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Armory uses the camera to photograph targets at the range."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Armory tags range sessions with your location."
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "https://armory.michondr.space/api",
+      "router": {},
+      "eas": {
+        "projectId": "9a6fd92d-ab07-4599-aad1-ee407f069fe6"
+      }
+    },
+    "owner": "michondrs-team"
+  }
+}

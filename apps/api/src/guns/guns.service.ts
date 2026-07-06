@@ -103,7 +103,12 @@ export class GunsService {
       select: {
         gunId: true,
         startedAt: true,
-        sets: { select: { targets: { select: { shotCount: true } } } },
+        sets: {
+          where: { deletedAt: null },
+          select: {
+            targets: { where: { deletedAt: null }, select: { shotCount: true } },
+          },
+        },
       },
     });
     const map = new Map<string, GunUsage>();

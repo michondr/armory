@@ -4,6 +4,7 @@ import { AppLayout } from './components/AppLayout';
 import { useAuth } from './lib/auth';
 import { AmmoPage } from './pages/AmmoPage';
 import { AuthPage } from './pages/AuthPage';
+import { BallisticsPage } from './pages/BallisticsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { GunsPage } from './pages/GunsPage';
 import { SessionDetailPage } from './pages/SessionDetailPage';
@@ -40,6 +41,7 @@ export function App() {
         <Route path="/ammo" element={<AmmoPage />} />
         <Route path="/sessions" element={<SessionsPage />} />
         <Route path="/sessions/:id" element={<SessionDetailPage />} />
+        <Route path="/ballistics" element={<BallisticsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

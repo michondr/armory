@@ -21,12 +21,14 @@ const detailInclude = {
   gun: true,
   ammo: true,
   sets: {
+    where: { deletedAt: null },
     orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
     include: {
       targets: {
+        where: { deletedAt: null },
         orderBy: { createdAt: 'asc' },
         include: {
-          shots: { orderBy: { index: 'asc' } },
+          shots: { where: { deletedAt: null }, orderBy: { index: 'asc' } },
         },
       },
     },
@@ -122,9 +124,12 @@ export class SessionsService {
 
   async addSet(userId: string, sessionId: string, input: CreateSetInput): Promise<SessionDetail> {
     await this.ensureSession(userId, sessionId);
-    const count = await this.prisma.shootingSet.count({ where: { sessionId } });
+    const count = await this.prisma.shootingSet.count({
+      where: { sessionId, deletedAt: null },
+    });
     await this.prisma.shootingSet.create({
       data: {
+        userId,
         sessionId,
         order: input.order ?? count,
         distanceM: input.distanceM ?? null,
@@ -156,7 +161,19 @@ export class SessionsService {
 
   async removeSet(userId: string, sessionId: string, setId: string): Promise<SessionDetail> {
     await this.ensureSet(userId, sessionId, setId);
-    await this.prisma.shootingSet.delete({ where: { id: setId } });
+    // Soft-delete the whole subtree so every row leaves a tombstone for sync.
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.shot.updateMany({
+        where: { target: { setId }, deletedAt: null },
+        data: { deletedAt: now },
+      }),
+      this.prisma.target.updateMany({
+        where: { setId, deletedAt: null },
+        data: { deletedAt: now },
+      }),
+      this.prisma.shootingSet.update({ where: { id: setId }, data: { deletedAt: now } }),
+    ]);
     return this.get(userId, sessionId);
   }
 
@@ -171,6 +188,7 @@ export class SessionsService {
     await this.ensureSet(userId, sessionId, setId);
     await this.prisma.target.create({
       data: {
+        userId,
         setId,
         shotCount: input.shotCount ?? 0,
         scoringSystem: input.scoringSystem ?? 'RINGS',
@@ -210,7 +228,14 @@ export class SessionsService {
     targetId: string,
   ): Promise<SessionDetail> {
     await this.ensureTarget(userId, sessionId, setId, targetId);
-    await this.prisma.target.delete({ where: { id: targetId } });
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.shot.updateMany({
+        where: { targetId, deletedAt: null },
+        data: { deletedAt: now },
+      }),
+      this.prisma.target.update({ where: { id: targetId }, data: { deletedAt: now } }),
+    ]);
     return this.get(userId, sessionId);
   }
 
@@ -254,11 +279,16 @@ export class SessionsService {
     const totalScore = shots.reduce((sum, s) => sum + (s.ringValue ?? 0), 0);
 
     await this.prisma.$transaction([
-      this.prisma.shot.deleteMany({ where: { targetId } }),
+      // Soft-delete instead of hard-delete: other devices need the tombstones.
+      this.prisma.shot.updateMany({
+        where: { targetId, deletedAt: null },
+        data: { deletedAt: new Date() },
+      }),
       ...(shots.length
         ? [
             this.prisma.shot.createMany({
               data: shots.map((s, i) => ({
+                userId,
                 targetId,
                 index: i,
                 ringValue: s.ringValue,
@@ -303,7 +333,9 @@ export class SessionsService {
 
   private async ensureSet(userId: string, sessionId: string, setId: string): Promise<void> {
     await this.ensureSession(userId, sessionId);
-    const set = await this.prisma.shootingSet.findFirst({ where: { id: setId, sessionId } });
+    const set = await this.prisma.shootingSet.findFirst({
+      where: { id: setId, sessionId, deletedAt: null },
+    });
     if (!set) throw new NotFoundException('Set not found');
   }
 
@@ -314,7 +346,9 @@ export class SessionsService {
     targetId: string,
   ): Promise<void> {
     await this.ensureSet(userId, sessionId, setId);
-    const target = await this.prisma.target.findFirst({ where: { id: targetId, setId } });
+    const target = await this.prisma.target.findFirst({
+      where: { id: targetId, setId, deletedAt: null },
+    });
     if (!target) throw new NotFoundException('Target not found');
   }
 
