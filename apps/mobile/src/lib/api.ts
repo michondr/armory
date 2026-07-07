@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { File } from 'expo-file-system';
 import NetInfo from '@react-native-community/netinfo';
 import type {
   AuthResponse,
@@ -206,12 +207,12 @@ export const syncApi = {
 /** Upload an image file (content-addressed, idempotent). Returns the stored path. */
 export async function uploadImage(localUri: string): Promise<string> {
   const form = new FormData();
-  // React Native's FormData accepts this file descriptor shape.
-  form.append('file', {
-    uri: localUri,
-    name: 'target.jpg',
-    type: 'image/jpeg',
-  } as unknown as Blob);
+  // Expo SDK 54+ replaced the global fetch with the WinterCG (expo/fetch)
+  // implementation, which rejects React Native's legacy { uri, name, type }
+  // FormData descriptor ("Unsupported FormDataPart implementation"). Read the
+  // local file into a real Blob so the multipart body serializes correctly.
+  // File implements Blob, so it can be appended directly to FormData.
+  form.append('file', new File(localUri) as unknown as Blob, 'target.jpg');
   const res = await authFetch('/images/content-addressed', { method: 'POST', body: form });
   const body = await jsonOrThrow<{ imagePath: string }>(res);
   return body.imagePath;
