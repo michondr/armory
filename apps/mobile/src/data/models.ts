@@ -27,6 +27,12 @@ export interface Ammo {
   notes: string | null;
 }
 
+export interface AmmoImage {
+  id: string;
+  ammoId: string;
+  imagePath: string | null;
+}
+
 export interface ScopeProfile {
   id: string;
   gunId: string;
@@ -109,6 +115,12 @@ export const toAmmo = (r: Row): Ammo => ({
   notes: asStrOrNull(r.notes),
 });
 
+export const toAmmoImage = (r: Row): AmmoImage => ({
+  id: asStr(r.id),
+  ammoId: asStr(r.ammoId),
+  imagePath: asStrOrNull(r.imagePath),
+});
+
 export const toScopeProfile = (r: Row): ScopeProfile => ({
   id: asStr(r.id),
   gunId: asStr(r.gunId),
@@ -168,6 +180,8 @@ export const toSet = (r: Row): SetRow => ({
 
 export const loadGuns = async (): Promise<Gun[]> => (await getAll('guns')).map(toGun);
 export const loadAmmo = async (): Promise<Ammo[]> => (await getAll('ammo')).map(toAmmo);
+export const ammoImagesForAmmo = async (ammoId: string): Promise<AmmoImage[]> =>
+  (await getWhere('ammoImages', 'ammoId', ammoId)).map(toAmmoImage);
 export const loadScopeProfiles = async (): Promise<ScopeProfile[]> =>
   (await getAll('scopeProfiles')).map(toScopeProfile);
 export const loadSessions = async (): Promise<SessionRow[]> =>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useLocalQuery } from '../../src/data/hooks';
 import { fmtStat, loadSessionTree, type SessionTree } from '../../src/data/models';
@@ -14,6 +14,7 @@ import {
 import { capturePhoto, pickPhoto } from '../../src/lib/capture';
 import { useSync } from '../../src/state/sync';
 import { theme } from '../../src/theme';
+import { AuthImage } from '../../src/ui/AuthImage';
 import { Button, Card, Field, Pill, Row, Screen, Subtle, TextField, Title } from '../../src/ui/components';
 import { Select } from '../../src/ui/Select';
 import { TargetScorer, type PlacedShot } from '../../src/ui/TargetScorer';
@@ -46,11 +47,16 @@ export default function SessionDetail() {
 
   return (
     <Screen>
-      <Title>{t.gun?.name ?? 'Session'}</Title>
-      <Subtle>
-        {new Date(t.session.startedAt).toLocaleString()}
-        {t.session.locationName ? ` · ${t.session.locationName}` : ''}
-      </Subtle>
+      <Row style={{ alignItems: 'center', gap: 12 }}>
+        <AuthImage path={t.gun?.imagePath ?? null} style={styles.gunThumb} />
+        <View style={{ flex: 1 }}>
+          <Title>{t.gun?.name ?? 'Session'}</Title>
+          <Subtle>
+            {new Date(t.session.startedAt).toLocaleString()}
+            {t.session.locationName ? ` · ${t.session.locationName}` : ''}
+          </Subtle>
+        </View>
+      </Row>
       {t.stats.count > 0 && (
         <Row style={{ gap: 16 }}>
           <Stat label="Avg" value={fmtStat(t.stats.average)} />
@@ -190,6 +196,11 @@ function TargetBlock({
         />
       ) : (
         <>
+          {tg.imagePath && (
+            <Pressable onPress={() => setScoring(true)}>
+              <AuthImage path={tg.imagePath} style={styles.targetThumb} contentFit="contain" />
+            </Pressable>
+          )}
           {!tg.imagePath && (
             <Field label="Quick scores (e.g. 10 9 9 8)">
               <TextField
@@ -240,3 +251,8 @@ function Stat({ label, value }: { label: string; value: string }) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  gunThumb: { width: 56, height: 56, borderRadius: 10, backgroundColor: theme.inputBg },
+  targetThumb: { width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: theme.inputBg },
+});

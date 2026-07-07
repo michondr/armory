@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { FlatList, Pressable, Text, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalQuery } from '../../src/data/hooks';
-import { loadAmmo, type Ammo } from '../../src/data/models';
-import { deleteAmmo, saveAmmo } from '../../src/data/mutations';
+import { ammoImagesForAmmo, loadAmmo, type Ammo } from '../../src/data/models';
+import { addAmmoImage, deleteAmmo, deleteAmmoImage, saveAmmo } from '../../src/data/mutations';
+import { capturePhoto, pickPhoto } from '../../src/lib/capture';
 import { useSync } from '../../src/state/sync';
 import { theme } from '../../src/theme';
+import { AuthImage } from '../../src/ui/AuthImage';
 import { Button, Card, Field, Row, Subtle, TextField, Title } from '../../src/ui/components';
 import { Select } from '../../src/ui/Select';
 
@@ -35,12 +37,17 @@ export default function AmmoTab() {
         renderItem={({ item }) => (
           <Pressable onPress={() => setEditing(item)}>
             <Card>
-              <Text style={{ color: theme.text, fontSize: 16, fontWeight: '600' }}>{item.name}</Text>
-              <Subtle>
-                {[item.caliber, item.muzzleVelocityMps ? `${item.muzzleVelocityMps} m/s` : null, item.ballisticCoefficient ? `BC ${item.ballisticCoefficient}` : null]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Subtle>
+              <Row style={{ alignItems: 'center', gap: 12 }}>
+                <AmmoThumb ammoId={item.id} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.text, fontSize: 16, fontWeight: '600' }}>{item.name}</Text>
+                  <Subtle>
+                    {[item.caliber, item.muzzleVelocityMps ? `${item.muzzleVelocityMps} m/s` : null, item.ballisticCoefficient ? `BC ${item.ballisticCoefficient}` : null]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </Subtle>
+                </View>
+              </Row>
             </Card>
           </Pressable>
         )}
@@ -79,6 +86,11 @@ function AmmoForm({ ammo, onDone }: { ammo: Ammo | null; onDone: () => void }) {
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg, padding: 16, gap: 12 }}>
       <Title>{ammo ? 'Edit ammo' : 'New ammo'}</Title>
+      {ammo ? (
+        <AmmoImagesEditor ammoId={ammo.id} />
+      ) : (
+        <Subtle>Save the ammo first to add photos.</Subtle>
+      )}
       <Field label="Name">
         <TextField value={name} onChangeText={setName} />
       </Field>
@@ -140,3 +152,94 @@ function AmmoForm({ ammo, onDone }: { ammo: Ammo | null; onDone: () => void }) {
     </View>
   );
 }
+
+/** First image for an ammo row, as a list thumbnail. */
+function AmmoThumb({ ammoId }: { ammoId: string }) {
+  const images = useLocalQuery(() => ammoImagesForAmmo(ammoId), [ammoId]);
+  const first = images.data?.[0]?.imagePath ?? null;
+  return (
+    <AuthImage
+      path={first}
+      style={styles.thumb}
+      onError={(m) => console.warn('ammo image', ammoId, m)}
+    />
+  );
+}
+
+/** Add/remove photos on a saved ammo entry. Multiple images per ammo. */
+function AmmoImagesEditor({ ammoId }: { ammoId: string }) {
+  const { bump, syncNow } = useSync();
+  const images = useLocalQuery(() => ammoImagesForAmmo(ammoId), [ammoId]);
+
+  const refresh = () => {
+    bump();
+    void syncNow();
+  };
+
+  const add = async (camera: boolean) => {
+    const uri = camera ? await capturePhoto() : await pickPhoto();
+    if (!uri) return;
+    await addAmmoImage(ammoId, uri);
+    refresh();
+  };
+
+  const remove = async (id: string) => {
+    await deleteAmmoImage(id);
+    refresh();
+  };
+
+  return (
+    <View style={{ gap: 8 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+        {(images.data ?? []).map((img) => (
+          <View key={img.id} style={styles.editorTile}>
+            <AuthImage path={img.imagePath} style={styles.editorImage} contentFit="cover" />
+            <Pressable style={styles.removeBtn} onPress={() => remove(img.id)}>
+              <Text style={styles.removeText}>✕</Text>
+            </Pressable>
+          </View>
+        ))}
+        <Pressable style={styles.addTile} onPress={() => add(false)}>
+          <Text style={styles.addText}>📷</Text>
+        </Pressable>
+      </ScrollView>
+      <Row style={{ gap: 8 }}>
+        <View style={{ flex: 1 }}>
+          <Button title="📷 Camera" variant="ghost" onPress={() => add(true)} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button title="🖼 Gallery" variant="ghost" onPress={() => add(false)} />
+        </View>
+      </Row>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  thumb: { width: 56, height: 56, borderRadius: 10, backgroundColor: theme.inputBg },
+  editorTile: { position: 'relative' },
+  editorImage: { width: 96, height: 96, borderRadius: 12, backgroundColor: theme.inputBg },
+  removeBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  addTile: {
+    width: 96,
+    height: 96,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
+    backgroundColor: theme.inputBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addText: { fontSize: 26 },
+});

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  Image,
   LayoutChangeEvent,
   Pressable,
   ScrollView,
@@ -8,8 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { authHeaders, imageUrl } from '../lib/api';
-import { isLocalUri } from '../sync/images';
+import { AuthImage } from './AuthImage';
 import { theme } from '../theme';
 import { Button } from './components';
 
@@ -46,10 +44,6 @@ export function TargetScorer({
   const [ringValue, setRingValue] = useState<number>(maxScorePerShot ?? 10);
   const [zone, setZone] = useState<string>('A');
 
-  const source = isLocalUri(imagePath)
-    ? { uri: imagePath }
-    : { uri: imageUrl(imagePath), headers: authHeaders() };
-
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
     setSize({ w: width, h: height });
@@ -72,7 +66,7 @@ export function TargetScorer({
     <View style={{ gap: 12 }}>
       <Pressable onPress={place}>
         <View onLayout={onLayout}>
-          <Image source={source} style={styles.image} resizeMode="contain" />
+          <AuthImage path={imagePath} style={styles.image} contentFit="contain" />
           {shots.map((s, i) => (
             <Pressable
               key={i}

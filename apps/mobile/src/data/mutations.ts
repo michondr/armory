@@ -1,5 +1,5 @@
 import { getWhere, newId, softDeleteLocal, upsertLocal } from '../db/repo';
-import { queueImage } from '../sync/images';
+import { isLocalUri, queueImage } from '../sync/images';
 import { shotPoints } from './models';
 
 // All mobile writes go through here: they write to the local mirror (marking the
@@ -30,6 +30,11 @@ export async function saveGun(input: GunInput): Promise<string> {
     purchasePrice: null,
     purchaseDate: null,
   });
+  // A freshly captured photo is a local file URI — queue it for upload so the
+  // sync engine swaps in the server path before pushing the gun row.
+  if (input.imagePath && isLocalUri(input.imagePath)) {
+    await queueImage('guns', id, input.imagePath, 'imagePath');
+  }
   return id;
 }
 
@@ -53,6 +58,16 @@ export async function saveAmmo(input: AmmoInput): Promise<string> {
 }
 
 export const deleteAmmo = (id: string) => softDeleteLocal('ammo', id);
+
+/** Attach a captured photo to an ammo entry (multiple images allowed per ammo). */
+export async function addAmmoImage(ammoId: string, localUri: string): Promise<string> {
+  const id = newId();
+  await upsertLocal('ammoImages', { id, ammoId, imagePath: localUri });
+  await queueImage('ammoImages', id, localUri, 'imagePath');
+  return id;
+}
+
+export const deleteAmmoImage = (id: string) => softDeleteLocal('ammoImages', id);
 
 export async function saveCartridge(name: string): Promise<void> {
   const trimmed = name.trim();

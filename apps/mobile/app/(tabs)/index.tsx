@@ -1,4 +1,4 @@
-import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useLocalQuery } from '../../src/data/hooks';
 import {
@@ -11,6 +11,7 @@ import {
 } from '../../src/data/models';
 import { useSync } from '../../src/state/sync';
 import { theme } from '../../src/theme';
+import { AuthImage } from '../../src/ui/AuthImage';
 import { Button, Card, Pill, Row, Subtle } from '../../src/ui/components';
 import { SyncBar } from '../../src/ui/SyncBar';
 
@@ -69,16 +70,21 @@ function SessionCard({
   return (
     <Pressable onPress={onPress}>
       <Card>
-        <Row style={{ justifyContent: 'space-between' }}>
-          <Text style={{ color: theme.text, fontSize: 16, fontWeight: '600' }}>
-            {gun?.name ?? 'Session'}
-          </Text>
-          <Pill tone={session.discipline === 'LONG' ? 'accent' : 'muted'}>{session.discipline}</Pill>
+        <Row style={{ alignItems: 'center', gap: 12 }}>
+          <AuthImage path={gun?.imagePath ?? null} style={styles.thumb} />
+          <View style={{ flex: 1 }}>
+            <Row style={{ justifyContent: 'space-between' }}>
+              <Text style={{ color: theme.text, fontSize: 16, fontWeight: '600' }}>
+                {gun?.name ?? 'Session'}
+              </Text>
+              <Pill tone={session.discipline === 'LONG' ? 'accent' : 'muted'}>{session.discipline}</Pill>
+            </Row>
+            <Subtle>
+              {when}
+              {session.locationName ? ` · ${session.locationName}` : ''}
+            </Subtle>
+          </View>
         </Row>
-        <Subtle>
-          {when}
-          {session.locationName ? ` · ${session.locationName}` : ''}
-        </Subtle>
         {stats.data && stats.data.count > 0 && (
           <Row style={{ gap: 16 }}>
             <Stat label="Avg" value={fmtStat(stats.data.average)} />
@@ -100,3 +106,7 @@ function Stat({ label, value }: { label: string; value: string }) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  thumb: { width: 48, height: 48, borderRadius: 10, backgroundColor: theme.inputBg },
+});
