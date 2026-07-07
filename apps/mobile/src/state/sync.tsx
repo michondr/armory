@@ -12,7 +12,7 @@ import { AppState, Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { getSyncState, setSyncState } from '../db/client';
 import { countDirty, newId } from '../db/repo';
-import { runSync, type SyncResult } from '../sync/engine';
+import { runSync, type SyncPhase, type SyncResult } from '../sync/engine';
 import { useAuth } from './auth';
 
 interface SyncContextValue {
@@ -21,6 +21,8 @@ interface SyncContextValue {
   /** Call after any local write to refresh dependent screens. */
   bump: () => void;
   syncing: boolean;
+  /** Current step within an in-flight sync (null when idle). */
+  phase: SyncPhase | null;
   pending: number;
   lastSyncedAt: string | null;
   lastResult: SyncResult | null;
@@ -41,6 +43,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [dataVersion, setDataVersion] = useState(0);
   const [syncing, setSyncing] = useState(false);
+  const [phase, setPhase] = useState<SyncPhase | null>(null);
   const [pending, setPending] = useState(0);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<SyncResult | null>(null);
@@ -57,7 +60,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     setSyncing(true);
     try {
       const deviceId = await getDeviceId();
-      const result = await runSync(deviceId, `${Platform.OS} device`);
+      const result = await runSync(deviceId, `${Platform.OS} device`, setPhase);
       setLastResult(result);
       if (result.ok) {
         setLastSyncedAt(new Date().toISOString());
@@ -67,6 +70,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     } finally {
       syncingRef.current = false;
       setSyncing(false);
+      setPhase(null);
     }
   }, [user]);
 
@@ -94,8 +98,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, [syncNow]);
 
   const value = useMemo(
-    () => ({ dataVersion, bump, syncing, pending, lastSyncedAt, lastResult, syncNow }),
-    [dataVersion, bump, syncing, pending, lastSyncedAt, lastResult, syncNow],
+    () => ({ dataVersion, bump, syncing, phase, pending, lastSyncedAt, lastResult, syncNow }),
+    [dataVersion, bump, syncing, phase, pending, lastSyncedAt, lastResult, syncNow],
   );
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
 }

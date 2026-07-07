@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useLocalQuery } from '../../src/data/hooks';
-import { fmtStat, loadSessionTree, type SessionTree } from '../../src/data/models';
+import { fmtStat, loadSessionTree, type SessionTree, type ShotRow } from '../../src/data/models';
 import {
   addSet,
   addTarget,
@@ -197,9 +197,11 @@ function TargetBlock({
       ) : (
         <>
           {tg.imagePath && (
-            <Pressable onPress={() => setScoring(true)}>
-              <AuthImage path={tg.imagePath} style={styles.targetThumb} contentFit="contain" />
-            </Pressable>
+            <TargetPreview
+              imagePath={tg.imagePath}
+              shots={target.shots}
+              onPress={() => setScoring(true)}
+            />
           )}
           {!tg.imagePath && (
             <Field label="Quick scores (e.g. 10 9 9 8)">
@@ -243,6 +245,38 @@ function TargetBlock({
   );
 }
 
+/** Read-only target photo with placed-shot markers overlaid. Tap to open scoring. */
+function TargetPreview({
+  imagePath,
+  shots,
+  onPress,
+}: {
+  imagePath: string;
+  shots: ShotRow[];
+  onPress: () => void;
+}) {
+  const placed = shots.filter((s) => s.x != null && s.y != null);
+  return (
+    <Pressable onPress={onPress}>
+      <View style={styles.targetThumb}>
+        <AuthImage path={imagePath} style={StyleSheet.absoluteFill} contentFit="contain" />
+        {placed.map((s, i) => (
+          <View
+            key={i}
+            style={[
+              styles.previewMarker,
+              { left: `${(s.x ?? 0) * 100}%`, top: `${(s.y ?? 0) * 100}%` },
+            ]}
+          >
+            <Text style={styles.previewMarkerText}>{s.zone ?? s.ringValue}</Text>
+          </View>
+        ))}
+      </View>
+      <Text style={styles.previewHint}>Tap to zoom &amp; score</Text>
+    </Pressable>
+  );
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <View>
@@ -254,5 +288,26 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   gunThumb: { width: 56, height: 56, borderRadius: 10, backgroundColor: theme.inputBg },
-  targetThumb: { width: '100%', aspectRatio: 1, borderRadius: 12, backgroundColor: theme.inputBg },
+  targetThumb: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    backgroundColor: theme.inputBg,
+    overflow: 'hidden',
+  },
+  previewMarker: {
+    position: 'absolute',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    marginLeft: -11,
+    marginTop: -11,
+    backgroundColor: theme.accent,
+    borderWidth: 2,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewMarkerText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  previewHint: { color: theme.textFaint, fontSize: 11, marginTop: 4 },
 });
