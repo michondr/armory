@@ -20,11 +20,14 @@ export function AuthImage({
   style,
   contentFit = 'cover',
   onError,
+  onLoad,
 }: {
   path: string | null | undefined;
   style?: ImageStyle;
   contentFit?: ImageContentFit;
   onError?: (message: string) => void;
+  /** Reports the image's intrinsic pixel dimensions once decoded. */
+  onLoad?: (dims: { width: number; height: number }) => void;
 }) {
   if (!path) return null;
 
@@ -40,6 +43,10 @@ export function AuthImage({
       transition={150}
       cachePolicy="memory-disk"
       onError={(e) => onError?.(e.error)}
+      onLoad={(e) => {
+        const src = e.source;
+        if (src?.width && src?.height) onLoad?.({ width: src.width, height: src.height });
+      }}
     />
   );
 }

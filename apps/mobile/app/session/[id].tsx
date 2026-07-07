@@ -106,6 +106,8 @@ function SetCard({
         <TargetBlock key={tg.target.id} target={tg} onChanged={onChanged} />
       ))}
 
+      <View style={styles.divider} />
+
       <Row>
         <View style={{ flex: 1 }}>
           <Button title="+ Rings target" variant="ghost" onPress={() => addNewTarget('RINGS')} />
@@ -174,6 +176,22 @@ function TargetBlock({
 
   return (
     <View style={{ gap: 8, borderTopWidth: 1, borderTopColor: theme.cardBorder, paddingTop: 10 }}>
+      {tg.imagePath && scoring && (
+        <TargetScorer
+          visible
+          imagePath={tg.imagePath}
+          scoringSystem={tg.scoringSystem}
+          maxScorePerShot={tg.maxScorePerShot}
+          initialShots={initialShots}
+          onClose={() => setScoring(false)}
+          onSave={async (shots) => {
+            await setTargetShots(tg.id, shots);
+            setScoring(false);
+            onChanged();
+          }}
+        />
+      )}
+
       <Row style={{ justifyContent: 'space-between' }}>
         <Text style={{ color: theme.text }}>
           {tg.scoringSystem} · {tg.shotCount} shots
@@ -182,65 +200,45 @@ function TargetBlock({
         <Pill tone={tg.status === 'MANUAL' ? 'accent' : 'muted'}>{tg.status}</Pill>
       </Row>
 
-      {tg.imagePath && scoring ? (
-        <TargetScorer
-          imagePath={tg.imagePath}
-          scoringSystem={tg.scoringSystem}
-          maxScorePerShot={tg.maxScorePerShot}
-          initialShots={initialShots}
-          onSave={async (shots) => {
-            await setTargetShots(tg.id, shots);
-            setScoring(false);
-            onChanged();
-          }}
-        />
-      ) : (
-        <>
-          {tg.imagePath && (
-            <TargetPreview
-              imagePath={tg.imagePath}
-              shots={target.shots}
-              onPress={() => setScoring(true)}
-            />
-          )}
-          {!tg.imagePath && (
-            <Field label="Quick scores (e.g. 10 9 9 8)">
-              <TextField
-                value={textValues}
-                onChangeText={setTextValues}
-                keyboardType="numbers-and-punctuation"
-                placeholder="space or comma separated"
-              />
-            </Field>
-          )}
-          <Row style={{ flexWrap: 'wrap' }}>
-            <View style={{ flex: 1, minWidth: 120 }}>
-              <Button title="📷 Camera" variant="ghost" onPress={() => addPhoto(true)} />
-            </View>
-            <View style={{ flex: 1, minWidth: 120 }}>
-              <Button title="🖼 Gallery" variant="ghost" onPress={() => addPhoto(false)} />
-            </View>
-            {tg.imagePath && (
-              <View style={{ flex: 1, minWidth: 120 }}>
-                <Button title="Score photo" onPress={() => setScoring(true)} />
-              </View>
-            )}
-            {!tg.imagePath && textValues.trim() !== '' && (
-              <View style={{ flex: 1, minWidth: 120 }}>
-                <Button title="Save scores" onPress={saveText} />
-              </View>
-            )}
-          </Row>
-          <Button
-            title="Delete target"
-            variant="danger"
-            onPress={async () => {
-              await deleteTarget(tg.id);
-              onChanged();
-            }}
-          />
-        </>
+      {tg.imagePath && (
+        <TargetPreview imagePath={tg.imagePath} shots={target.shots} onPress={() => setScoring(true)} />
       )}
+      {!tg.imagePath && (
+        <Field label="Quick scores (e.g. 10 9 9 8)">
+          <TextField
+            value={textValues}
+            onChangeText={setTextValues}
+            keyboardType="numbers-and-punctuation"
+            placeholder="space or comma separated"
+          />
+        </Field>
+      )}
+      <Row style={{ flexWrap: 'wrap' }}>
+        <View style={{ flex: 1, minWidth: 120 }}>
+          <Button title="📷 Camera" variant="ghost" onPress={() => addPhoto(true)} />
+        </View>
+        <View style={{ flex: 1, minWidth: 120 }}>
+          <Button title="🖼 Gallery" variant="ghost" onPress={() => addPhoto(false)} />
+        </View>
+        {tg.imagePath && (
+          <View style={{ flex: 1, minWidth: 120 }}>
+            <Button title="Score photo" onPress={() => setScoring(true)} />
+          </View>
+        )}
+        {!tg.imagePath && textValues.trim() !== '' && (
+          <View style={{ flex: 1, minWidth: 120 }}>
+            <Button title="Save scores" onPress={saveText} />
+          </View>
+        )}
+      </Row>
+      <Button
+        title="Delete target"
+        variant="danger"
+        onPress={async () => {
+          await deleteTarget(tg.id);
+          onChanged();
+        }}
+      />
     </View>
   );
 }
@@ -256,16 +254,30 @@ function TargetPreview({
   onPress: () => void;
 }) {
   const placed = shots.filter((s) => s.x != null && s.y != null);
+  // Intrinsic dims → the image's contain-fit rect inside the square thumb, so
+  // markers (stored normalized to the image, not the square box) land on the
+  // photo, not in the letterbox. Matches the fullscreen scorer's mapping.
+  const [intr, setIntr] = useState({ w: 1, h: 1 });
+  const scale = Math.min(1 / intr.w, 1 / intr.h);
+  const dw = intr.w * scale;
+  const dh = intr.h * scale;
+  const ox = (1 - dw) / 2;
+  const oy = (1 - dh) / 2;
   return (
     <Pressable onPress={onPress}>
       <View style={styles.targetThumb}>
-        <AuthImage path={imagePath} style={StyleSheet.absoluteFill} contentFit="contain" />
+        <AuthImage
+          path={imagePath}
+          style={StyleSheet.absoluteFill}
+          contentFit="contain"
+          onLoad={(d) => setIntr({ w: d.width, h: d.height })}
+        />
         {placed.map((s, i) => (
           <View
             key={i}
             style={[
               styles.previewMarker,
-              { left: `${(s.x ?? 0) * 100}%`, top: `${(s.y ?? 0) * 100}%` },
+              { left: `${(ox + (s.x ?? 0) * dw) * 100}%`, top: `${(oy + (s.y ?? 0) * dh) * 100}%` },
             ]}
           >
             <Text style={styles.previewMarkerText}>{s.zone ?? s.ringValue}</Text>
@@ -288,6 +300,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   gunThumb: { width: 56, height: 56, borderRadius: 10, backgroundColor: theme.inputBg },
+  divider: { height: 1, backgroundColor: theme.cardBorder, marginVertical: 6 },
   targetThumb: {
     width: '100%',
     aspectRatio: 1,

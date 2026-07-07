@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import type { SyncTable } from '@armory/shared';
 import { dirtyCounts } from '../db/repo';
+import { API_URL } from '../lib/config';
+import { testConnection, type ConnectionTestResult } from '../lib/api';
 import { useSync } from '../state/sync';
 import { countPendingImages } from '../sync/images';
 import type { SyncLogEntry } from '../sync/engine';
@@ -19,12 +22,37 @@ export function SyncDiagnostics() {
   const { syncing, phase, lastResult, lastSyncedAt, logs, clearLogs, syncNow, dataVersion } = useSync();
   const [dirty, setDirty] = useState<Partial<Record<SyncTable, number>>>({});
   const [pendingImages, setPendingImages] = useState(0);
+  const [net, setNet] = useState<{ connected: boolean | null; type: string | null }>({
+    connected: null,
+    type: null,
+  });
+  const [conn, setConn] = useState<ConnectionTestResult | null>(null);
+  const [testing, setTesting] = useState(false);
 
   // Re-fetch counts whenever data changes or a sync finishes/advances.
   useEffect(() => {
     void dirtyCounts().then(setDirty);
     void countPendingImages().then(setPendingImages);
   }, [dataVersion, syncing, lastResult, logs.length]);
+
+  // Live network state — explains "says offline but I'm on wifi": isConnected is
+  // the device's local view (wifi up), isInternetReachable is whether it can get
+  // out. The connection test below is the authoritative check against the API.
+  useEffect(() => {
+    const unsub = NetInfo.addEventListener((s) => {
+      setNet({ connected: s.isConnected ?? null, type: s.type ?? null });
+    });
+    return unsub;
+  }, []);
+
+  const runTest = async () => {
+    setTesting(true);
+    try {
+      setConn(await testConnection());
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const status = syncing
     ? phaseLabel(phase)
@@ -57,6 +85,25 @@ export function SyncDiagnostics() {
         <Subtle>Pending images</Subtle>
         <Text style={{ color: theme.text }}>{pendingImages}</Text>
       </Row>
+
+      <View style={{ gap: 6 }}>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Subtle>Network</Subtle>
+          <Text style={{ color: theme.textFaint, fontSize: 12 }}>
+            {net.connected === null ? '—' : net.connected ? `${net.type ?? 'online'}` : 'no connection'}
+          </Text>
+        </Row>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Subtle>API</Subtle>
+          <Text style={{ color: theme.textFaint, fontSize: 11 }}>{API_URL}</Text>
+        </Row>
+        {conn && (
+          <Text style={[styles.muted, { color: conn.ok ? theme.accent : theme.danger }]}>
+            {conn.ok ? `✓ ${conn.message} (${conn.ms}ms)` : `✗ ${conn.message}`}
+          </Text>
+        )}
+        <Button title={testing ? 'Testing…' : 'Test connection'} variant="ghost" onPress={() => void runTest()} disabled={testing} />
+      </View>
 
       <View style={{ gap: 4 }}>
         <Subtle>Pending by table</Subtle>

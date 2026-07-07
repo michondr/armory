@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import NetInfo from '@react-native-community/netinfo';
 import type {
   AuthResponse,
   LoginInput,
@@ -68,13 +69,58 @@ export class OfflineError extends Error {
   }
 }
 
+/**
+ * The device has network connectivity, but the request to the API still failed
+ * (DNS/TLS/connection refused/timeout). Surfaced distinctly from `OfflineError`
+ * so the diagnostics can tell "on wifi but the server is unreachable" apart
+ * from "no network at all" — otherwise a stranded/unreachable server reads as
+ * "offline" forever and hides the real cause.
+ */
+export class ServerUnreachableError extends Error {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+/** Quick connectivity check: can we reach the API's unauthed /health endpoint? */
+export interface ConnectionTestResult {
+  ok: boolean;
+  status?: number;
+  message: string;
+  ms?: number;
+}
+
+export async function testConnection(): Promise<ConnectionTestResult> {
+  const start = Date.now();
+  try {
+    const res = await fetch(`${API_URL}/health`, { method: 'GET' });
+    const ms = Date.now() - start;
+    if (res.ok) return { ok: true, status: res.status, message: 'reachable', ms };
+    return { ok: false, status: res.status, message: `HTTP ${res.status} ${res.statusText}`.trim() };
+  } catch (e) {
+    const net = await NetInfo.fetch().catch(() => null);
+    const connected = net?.isConnected ?? false;
+    const detail = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      message: connected ? `online, server unreachable (${detail})` : `no network (${detail})`,
+    };
+  }
+}
+
 async function rawFetch(path: string, init: RequestInit): Promise<Response> {
   try {
     return await fetch(`${API_URL}${path}`, init);
-  } catch {
-    // fetch throws on network failure — surface it as an OfflineError so the sync
-    // engine can quietly back off instead of treating it as a hard error.
-    throw new OfflineError();
+  } catch (e) {
+    // fetch throws on any network failure. Distinguish true offline (NetInfo says
+    // no connectivity) from "online but the server is unreachable" so the sync
+    // engine and the diagnostics log report the real cause instead of masking
+    // both as "offline".
+    const net = await NetInfo.fetch().catch(() => null);
+    const connected = net?.isConnected ?? false;
+    if (!connected) throw new OfflineError();
+    const detail = e instanceof Error ? e.message : String(e);
+    throw new ServerUnreachableError(`server unreachable: ${detail}`);
   }
 }
 
