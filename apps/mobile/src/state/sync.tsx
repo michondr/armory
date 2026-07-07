@@ -12,7 +12,7 @@ import { AppState, Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { getSyncState, setSyncState } from '../db/client';
 import { countDirty, newId } from '../db/repo';
-import { runSync, type SyncPhase, type SyncResult } from '../sync/engine';
+import { runSync, type SyncLogEntry, type SyncPhase, type SyncResult } from '../sync/engine';
 import { useAuth } from './auth';
 
 interface SyncContextValue {
@@ -26,6 +26,10 @@ interface SyncContextValue {
   pending: number;
   lastSyncedAt: string | null;
   lastResult: SyncResult | null;
+  /** Fine-grained, timestamped lines from the most recent syncs (newest last). */
+  logs: SyncLogEntry[];
+  /** Empty the sync log shown in the diagnostics panel. */
+  clearLogs: () => void;
   syncNow: () => Promise<void>;
 }
 
@@ -47,6 +51,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState(0);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<SyncResult | null>(null);
+  const [logs, setLogs] = useState<SyncLogEntry[]>([]);
   const syncingRef = useRef(false);
 
   const bump = useCallback(() => {
@@ -54,13 +59,24 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     countDirty().then(setPending).catch(() => {});
   }, []);
 
+  // Append one fine-grained line from the sync engine. Capped so a long-running
+  // session doesn't grow the log without bound.
+  const addLog = useCallback((entry: SyncLogEntry) => {
+    setLogs((prev) => {
+      const next = [...prev, entry];
+      return next.length > 60 ? next.slice(next.length - 60) : next;
+    });
+  }, []);
+
+  const clearLogs = useCallback(() => setLogs([]), []);
+
   const syncNow = useCallback(async () => {
     if (!user || syncingRef.current) return;
     syncingRef.current = true;
     setSyncing(true);
     try {
       const deviceId = await getDeviceId();
-      const result = await runSync(deviceId, `${Platform.OS} device`, setPhase);
+      const result = await runSync(deviceId, `${Platform.OS} device`, setPhase, addLog);
       setLastResult(result);
       if (result.ok) {
         setLastSyncedAt(new Date().toISOString());
@@ -72,7 +88,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setSyncing(false);
       setPhase(null);
     }
-  }, [user]);
+  }, [user, addLog]);
 
   // Initial pending count + sync when a user is present.
   useEffect(() => {
@@ -98,8 +114,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, [syncNow]);
 
   const value = useMemo(
-    () => ({ dataVersion, bump, syncing, phase, pending, lastSyncedAt, lastResult, syncNow }),
-    [dataVersion, bump, syncing, phase, pending, lastSyncedAt, lastResult, syncNow],
+    () => ({ dataVersion, bump, syncing, phase, pending, lastSyncedAt, lastResult, logs, clearLogs, syncNow }),
+    [dataVersion, bump, syncing, phase, pending, lastSyncedAt, lastResult, logs, clearLogs, syncNow],
   );
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
 }

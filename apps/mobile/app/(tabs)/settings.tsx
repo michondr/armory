@@ -6,6 +6,7 @@ import { useSync } from '../../src/state/sync';
 import { theme } from '../../src/theme';
 import { Button, Card, Row, Screen, Subtle, Title } from '../../src/ui/components';
 import { SyncBar } from '../../src/ui/SyncBar';
+import { SyncDiagnostics } from '../../src/ui/SyncDiagnostics';
 
 export default function SettingsTab() {
   const { user, logout } = useAuth();
@@ -16,6 +17,7 @@ export default function SettingsTab() {
     <Screen>
       <Title>Settings</Title>
       <SyncBar />
+      <SyncDiagnostics />
 
       <Card>
         <Text style={{ color: theme.text, fontWeight: '600' }}>{user?.displayName ?? user?.email}</Text>

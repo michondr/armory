@@ -63,7 +63,12 @@ export default function Login() {
           />
         </Field>
         <Field label="Password">
-          <TextField value={password} onChangeText={setPassword} secureTextEntry />
+          <TextField
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+          />
         </Field>
 
         {error && <Text style={{ color: theme.danger }}>{error}</Text>}

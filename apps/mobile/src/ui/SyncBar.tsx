@@ -15,9 +15,9 @@ export function SyncBar() {
 
   let status: string;
   if (syncing) status = phaseLabel(phase);
-  else if (pending > 0) status = `${pending} change${pending === 1 ? '' : 's'} to sync`;
   else if (lastResult && !lastResult.ok && lastResult.reason === 'offline') status = 'Offline';
   else if (lastResult && !lastResult.ok) status = 'Sync failed';
+  else if (pending > 0) status = `${pending} change${pending === 1 ? '' : 's'} to sync`;
   else if (lastSyncedAt) status = `Synced ${timeAgo(lastSyncedAt)}`;
   else status = 'Not synced yet';
 
@@ -39,7 +39,12 @@ function describeDetail(
 ): string | null {
   if (!lastResult) return null;
   if (!lastResult.ok) {
-    return lastResult.message ? lastResult.message : null;
+    // Show why it failed and how much is still waiting, so a stuck sync isn't
+    // silent. (The status line already reads "Offline"/"Sync failed".)
+    const parts: string[] = [];
+    if (lastResult.message) parts.push(lastResult.message);
+    if (pending > 0) parts.push(`${pending} change${pending === 1 ? '' : 's'} pending`);
+    return parts.length ? parts.join(' · ') : null;
   }
   const parts: string[] = [];
   const pushed = formatCounts(lastResult.pushed);
@@ -101,8 +106,8 @@ function dotColor(
   lastResult: ReturnType<typeof useSync>['lastResult'],
 ): string {
   if (syncing) return theme.warn;
+  if (lastResult && !lastResult.ok) return theme.danger;
   if (pending > 0) return theme.warn;
-  if (lastResult && !lastResult.ok) return theme.textFaint;
   if (lastResult && lastResult.ok && lastResult.skipped.length) return theme.warn;
   return theme.accent;
 }

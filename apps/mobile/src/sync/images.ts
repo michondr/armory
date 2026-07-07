@@ -38,6 +38,13 @@ async function listPending(): Promise<PendingImage[]> {
   return db.getAllAsync<PendingImage>('SELECT * FROM "pending_images" ORDER BY "createdAt" ASC');
 }
 
+/** Number of images queued for upload — surfaced in the sync diagnostics panel. */
+export async function countPendingImages(): Promise<number> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM "pending_images"');
+  return row?.n ?? 0;
+}
+
 async function removePending(id: string): Promise<void> {
   const db = await getDb();
   await db.runAsync('DELETE FROM "pending_images" WHERE "id" = ?', id);

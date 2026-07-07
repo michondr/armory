@@ -59,6 +59,32 @@ export async function applyServer(table: SyncTable, wire: Row): Promise<void> {
   await writeRow(table, wire, 0);
 }
 
+/**
+ * Apply an authoritative server row from the *push response* — i.e. a row the
+ * server just accepted (or for which it insisted on its own version). Unlike
+ * `applyServer`, this does NOT resolve conflicts by comparing clocks: it clears
+ * dirty based on whether the local row was re-edited during the push round-trip,
+ * by comparing the local row's current `updatedAt` against the `pushedUpdatedAt`
+ * snapshot we sent. This is load-bearing: the server restamps an accepted row
+ * with its own clock, so if the device clock is ahead of the server clock,
+ * `applyServer` would see `localTs > serverTs` and leave the row dirty forever
+ * — stranding it in "x changes to sync" on every subsequent sync. Comparing the
+ * pushed snapshot instead of the clock fixes that. If the row was edited again
+ * mid-flight (updatedAt changed), keep it dirty to push the newer edit.
+ */
+export async function applyPushedRow(
+  table: SyncTable,
+  wire: Row,
+  pushedUpdatedAt?: string,
+): Promise<void> {
+  const id = String(wire.id);
+  const existing = await getById(table, id, true);
+  if (existing && existing.dirty === 1 && pushedUpdatedAt !== undefined) {
+    if (String(existing.updatedAt) !== pushedUpdatedAt) return; // re-edited mid-flight
+  }
+  await writeRow(table, wire, 0);
+}
+
 async function writeRow(table: SyncTable, row: Row, dirty: 0 | 1): Promise<void> {
   const db = await getDb();
   const cols = columnNames(table);
@@ -136,4 +162,18 @@ export async function countDirty(): Promise<number> {
     total += row?.n ?? 0;
   }
   return total;
+}
+
+/** Per-table dirty counts (only tables with >0), for the sync diagnostics panel. */
+export async function dirtyCounts(): Promise<Partial<Record<SyncTable, number>>> {
+  const db = await getDb();
+  const counts: Partial<Record<SyncTable, number>> = {};
+  for (const table of Object.keys(TABLE_DEFS) as SyncTable[]) {
+    const row = await db.getFirstAsync<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM ${q(table)} WHERE "dirty" = 1`,
+    );
+    const n = row?.n ?? 0;
+    if (n > 0) counts[table] = n;
+  }
+  return counts;
 }
